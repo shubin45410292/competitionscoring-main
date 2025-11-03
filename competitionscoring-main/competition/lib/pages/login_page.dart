@@ -19,6 +19,8 @@ class _LoginPageState extends State<LoginPage> {
   final String teacherPassword = '123456';
   final String studentAccount = 'student';
   final String studentPassword = '123456';
+  final String adminAccount = 'admin';
+  final String adminPassword = '123456';
 
   void _login() {
     final account = _accountController.text.trim();
@@ -33,7 +35,11 @@ class _LoginPageState extends State<LoginPage> {
 
       Navigator.pushReplacementNamed(context, '/studentHome');
 
-    } else {
+    } else if (account == adminAccount && password == adminPassword) {
+
+      Navigator.pushReplacementNamed(context, '/adminHome');
+
+    }else {
       // 账号密码错误提示
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -109,7 +115,7 @@ class _LoginPageState extends State<LoginPage> {
                           border: OutlineInputBorder(),
                           contentPadding:
                               EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-                          hintText: 'teacher 或 student',
+                          hintText: 'teacher 或 student 或 admin',
                         ),
                       ),
                       const SizedBox(height: 16),
