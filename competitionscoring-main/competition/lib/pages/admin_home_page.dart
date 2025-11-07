@@ -123,7 +123,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
               Icons.rule_rounded,
               Colors.redAccent,
               '积分权重规则管理',
-              () {},
+              () {
+                Navigator.pushReplacementNamed(context, '/adminScoreRules');
+              },
             ),
 
             const SizedBox(height: 26),
