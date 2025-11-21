@@ -1,37 +1,65 @@
-import 'package:dio/dio.dart'; // 假设使用dio库，需在pubspec.yaml中添加依赖
+import 'package:dio/dio.dart';
+import 'package:competition/util/token_util.dart';
 
 // 后端基础URL
 const String baseUrl = "http://204.152.192.27:8080/api";
 
-// 创建Dio实例（统一配置请求）
+// 创建Dio实例并添加拦截器
 final Dio dio = Dio(BaseOptions(
   baseUrl: baseUrl,
   connectTimeout: const Duration(seconds: 5),
   receiveTimeout: const Duration(seconds: 5),
-  // 可添加默认请求头（如Token、Content-Type等）
   headers: {
-    //"Content-Type": "application/json",
-    // "Authorization": "Bearer {token}" // 后续可根据登录状态动态设置
+    "Content-Type": "application/json", // 显式指定JSON格式
   },
-));
+))..interceptors.add(
+  InterceptorsWrapper(
+    // 请求发送前拦截：添加Token到请求头
+    onRequest: (options, handler) async {
+      // 从本地获取Token
+      final accessToken = await TokenUtil.getAccessToken();
+      final refreshToken = await TokenUtil.getRefreshToken();
 
-// GET请求封装
-Future<T> get<T>(String path, {Map<String, dynamic>? params}) async {
+      // 如果Token存在，添加到请求头
+      if (accessToken != null) {
+        options.headers["Access-Token"] = accessToken;
+      }
+
+      if (refreshToken != null) {
+        options.headers["Refresh-Token"] = refreshToken;
+      }
+      // print("2");
+      // print(options.headers["Access-Token"] );
+      // print(options.headers["Refresh-Token"]);
+      handler.next(options); // 继续发送请求
+    },
+  ),
+);
+
+// POST请求封装
+Future<Response> post(String path, {dynamic data}) async {
   try {
-    Response response = await dio.get(path, queryParameters: params);
-    return response.data;
+    Response response = await dio.post(path, data: data);
+    return response;
   } catch (e) {
-    throw Exception("GET请求失败：${_formatError(e)}");
+    throw Exception("POST请求失败：${_formatError(e)}");
   }
 }
 
-// POST请求封装
-Future<T> post<T>(String path, {dynamic data}) async {
+// GET请求封装（支持查询参数queryParameters）
+Future<Response> get(
+    String path, {
+      Map<String, dynamic>? queryParameters, // 专门用于GET请求的查询参数
+    }) async {
   try {
-    Response response = await dio.post(path, data: data);
-    return response.data;
+    // 调用dio.get时，使用queryParameters传递参数（而非data）
+    Response response = await dio.get(
+      path,
+      queryParameters: queryParameters, // 关键修改：GET参数用queryParameters
+    );
+    return response;
   } catch (e) {
-    throw Exception("POST请求失败：${_formatError(e)}");
+    throw Exception("GET请求失败：${_formatError(e)}");
   }
 }
 
