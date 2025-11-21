@@ -1,6 +1,7 @@
 // 用户注册页面(主页面)
 
 import 'package:flutter/material.dart';
+import 'package:competition/util/http.dart';
 
 class UserRegisterPage extends StatefulWidget {
   const UserRegisterPage({super.key});
@@ -12,58 +13,192 @@ class UserRegisterPage extends StatefulWidget {
 class _UserRegisterPageState extends State<UserRegisterPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _codeController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _idController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
   bool _isCodeSent = false;
 
-  void _sendVerificationCode() {
+
+  //  //测试用
+  // void _sendVerificationCode() {
+  //   final email = _emailController.text.trim();
+  //   if (email.isEmpty) {
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(const SnackBar(content: Text('请输入邮箱地址')));
+  //     return;
+  //   }
+  //
+  //   setState(() {
+  //     _isCodeSent = true;
+  //   });
+  //
+  //   ScaffoldMessenger.of(
+  //     context,
+  //   ).showSnackBar(SnackBar(content: Text('验证码已发送至 $email')));
+  // }
+
+  // //测试用
+  // void _submit() {
+  //   final email = _emailController.text.trim();
+  //   final code = _codeController.text.trim();
+  //   final name = _nameController.text.trim();
+  //   final id = _idController.text.trim();
+  //   final password = _passwordController.text.trim();
+  //   final confirmPassword = _confirmPasswordController.text.trim();
+  //
+  //   if (email.isEmpty ||
+  //       code.isEmpty ||
+  //       password.isEmpty ||
+  //       confirmPassword.isEmpty ||
+  //       name.isEmpty ||
+  //       id.isEmpty
+  //   ) {
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(const SnackBar(content: Text('请填写所有字段')));
+  //     return;
+  //   }
+  //
+  //   if (password != confirmPassword) {
+  //     ScaffoldMessenger.of(
+  //       context,
+  //     ).showSnackBar(const SnackBar(content: Text('两次输入的密码不一致')));
+  //     return;
+  //   }
+  //
+  //   ScaffoldMessenger.of(
+  //     context,
+  //   ).showSnackBar(const SnackBar(content: Text('注册成功，请返回登录')));
+  //
+  //   Navigator.pop(context);
+  // }
+
+  void _sendVerificationCode() async {
     final email = _emailController.text.trim();
     if (email.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('请输入邮箱地址')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请输入邮箱地址')),
+      );
       return;
     }
 
-    setState(() {
-      _isCodeSent = true;
-    });
+    try {
+      // 调用发送邮箱验证码接口（POST /auth/email/send）
+      var response = await post(
+        "/auth/email/send",
+        data: {
+          "email": email, // 对应接口的email参数
+        },
+      );
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('验证码已发送至 $email')));
+      // 根据后端响应处理（参考接口返回格式：{"base": {"code": 10000, "msg": "success"}}）
+      if (response.data["base"]["code"] == 10000) {
+        setState(() => _isCodeSent = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('验证码已发送至 $email')),
+        );
+      } else {
+        // 后端返回错误提示（如邮箱格式错误）
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response.data["base"]["msg"] ?? "发送验证码失败"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } catch (e) {
+      // 网络错误处理
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
   }
 
-  void _submit() {
+  void _submit() async {
     final email = _emailController.text.trim();
     final code = _codeController.text.trim();
+    final name = _nameController.text.trim();
+    final id = _idController.text.trim();
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
 
-    if (email.isEmpty ||
-        code.isEmpty ||
-        password.isEmpty ||
-        confirmPassword.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('请填写所有字段')));
+    // 本地输入验证
+    if (email.isEmpty || code.isEmpty || password.isEmpty || confirmPassword.isEmpty || name.isEmpty || id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请填写所有字段')),
+      );
       return;
     }
-
     if (password != confirmPassword) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('两次输入的密码不一致')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('两次输入的密码不一致')),
+      );
       return;
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('注册成功，请返回登录')));
+    try {
+      // 1. 先验证邮箱验证码（POST /auth/email）
+      var verifyResponse = await post(
+        "/auth/email",
+        data: {
+          "code": code,   // 验证码
+          "email": email, // 邮箱地址
+        },
+      );
 
-    Navigator.pop(context);
+      if (verifyResponse.data["base"]["code"] != 10000) {
+        // 验证码验证失败
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(verifyResponse.data["base"]["msg"] ?? "验证码错误"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+
+      // 2. 验证成功后，提交注册信息（POST /auth/register）
+      var registerResponse = await post(
+        "/auth/register",
+        data: {
+          "username": name,   // 姓名（对应接口的username参数）
+          "password": password, // 密码
+          "email": email,     // 邮箱
+          "id": id,           // 学号（对应接口的id参数）
+        },
+      );
+
+      if (registerResponse.data["base"]["code"] == 10000) {
+        // 注册成功
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('注册成功，请返回登录')),
+        );
+        Navigator.pop(context); // 返回登录页
+      } else {
+        // 注册失败（如学号已存在）
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(registerResponse.data["base"]["msg"] ?? "注册失败"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } catch (e) {
+      // 网络错误处理
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
   }
 
   @override
@@ -119,7 +254,48 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                       ),
                     ),
                     const SizedBox(height: 20),
-
+                    //姓名
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '姓名',
+                        style: TextStyle(fontSize: 14, color: Colors.black87),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: '请输入姓名',
+                        contentPadding: EdgeInsets.symmetric(
+                          vertical: 6,
+                          horizontal: 10,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    //学号
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '学号',
+                        style: TextStyle(fontSize: 14, color: Colors.black87),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _idController,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: '请输入学号',
+                        contentPadding: EdgeInsets.symmetric(
+                          vertical: 6,
+                          horizontal: 10,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     // 邮箱
                     const Align(
                       alignment: Alignment.centerLeft,
