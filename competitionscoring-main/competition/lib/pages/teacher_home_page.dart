@@ -2,12 +2,78 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:convert';
+import 'package:competition/util/http.dart';
 import 'ranking_page.dart';
 import 'student_appeal_page.dart';
 import 'login_page.dart';
+import 'package:competition/util/token_util.dart';
 
-class TeacherHomePage extends StatelessWidget {
+class TeacherHomePage extends StatefulWidget {
   const TeacherHomePage({super.key});
+
+  @override
+  State<TeacherHomePage> createState() => _TeacherHomePageState();
+}
+
+class _TeacherHomePageState extends State<TeacherHomePage> {
+  // 存储用户信息
+  Map<String, dynamic>? userInfo;
+  bool isLoading = true;
+  String errorMsg = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // 初始化时获取用户信息
+    _fetchUserInfo();
+  }
+
+  // 获取用户信息
+  Future<void> _fetchUserInfo() async {
+    try {
+      // 从本地存储获取userId（假设TokenUtil中有获取userId的方法）
+      String? userId = await TokenUtil.getUserId();
+      print(userId);
+      if (userId == null || userId.isEmpty) {
+        setState(() {
+          isLoading = false;
+          errorMsg = '未获取到用户信息';
+        });
+        return;
+      }
+      // 发送请求：使用封装的get方法，传入路径和路径参数
+      final response = await get(
+        '/users', // 路径模板
+        queryParameters: {'Id': userId},
+      );
+      print(userId);
+      if (response.statusCode == 200) {
+
+        if (response.data['base']['code'] == 10000) {
+          setState(() {
+            userInfo = response.data['data'];
+            isLoading = false;
+          });
+        } else {
+          setState(() {
+            isLoading = false;
+            errorMsg = response.data['base']['msg'] ?? '获取用户信息失败';
+          });
+        }
+      } else {
+        setState(() {
+          isLoading = false;
+          errorMsg = '请求失败，状态码：${response.statusCode}';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+        errorMsg = '获取信息出错：${e.toString()}';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +94,7 @@ class TeacherHomePage extends StatelessWidget {
           iconTheme: const IconThemeData(color: Colors.white),
           centerTitle: true,
           elevation: 0,
-          automaticallyImplyLeading: false, // 不显示系统默认返回按钮
+          automaticallyImplyLeading: false,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
             onPressed: () {
@@ -70,18 +136,23 @@ class TeacherHomePage extends StatelessWidget {
                     child: Icon(Icons.person, size: 40, color: Colors.grey),
                   ),
                   const SizedBox(height: 12),
-                  Column(
+                  // 显示用户信息或加载状态
+                  isLoading
+                      ? const CircularProgressIndicator()
+                      : errorMsg.isNotEmpty
+                      ? Text(errorMsg, style: const TextStyle(color: Colors.red))
+                      : Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
-                    children: const [
+                    children: [
                       Text(
-                        '辅导员',
-                        style: TextStyle(
+                        userInfo?['username'] ?? '未知用户',
+                        style: const TextStyle(
                             fontSize: 16, fontWeight: FontWeight.w900),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
-                        '账号：00076',
-                        style: TextStyle(
+                        '账号：${userInfo?['userId'] ?? '未知账号'}',
+                        style: const TextStyle(
                             fontSize: 14,
                             color: Colors.black54,
                             fontWeight: FontWeight.w600),
@@ -114,7 +185,9 @@ class TeacherHomePage extends StatelessWidget {
             // 退出按钮
             Center(
               child: TextButton(
-                onPressed: () {
+                onPressed: () async {
+                  // 清除本地用户信息
+                  await TokenUtil.clearTokens();
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(builder: (_) => const LoginPage()),
@@ -135,9 +208,9 @@ class TeacherHomePage extends StatelessWidget {
   // 菜单卡片
   Widget _buildMenuItem(BuildContext context,
       {required IconData icon,
-      required Color color,
-      required String title,
-      required Widget page}) {
+        required Color color,
+        required String title,
+        required Widget page}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -153,7 +226,7 @@ class TeacherHomePage extends StatelessWidget {
       ),
       child: ListTile(
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+        const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
         leading: Container(
           width: 40,
           height: 40,
