@@ -5,10 +5,74 @@ import 'package:flutter/services.dart';
 import 'upload_page.dart';
 import 'score_detail_page.dart';
 import 'appeal_record_page.dart';
+import 'package:competition/util/http.dart';
+import 'package:competition/util/token_util.dart';
 
 
-class StudentHomePage extends StatelessWidget {
+class StudentHomePage extends StatefulWidget {
   const StudentHomePage({super.key});
+  @override
+  State<StudentHomePage> createState() => _StudentHomePageState();
+}
+
+  class _StudentHomePageState extends State<StudentHomePage> {
+  // 存储用户信息
+  Map<String, dynamic>? userInfo;
+  bool isLoading = true;
+  String errorMsg = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // 初始化时获取用户信息
+    _fetchUserInfo();
+  }
+
+  // 获取用户信息
+  Future<void> _fetchUserInfo() async {
+    try {
+      // 从本地存储获取userId（假设TokenUtil中有获取userId的方法）
+      String? userId = await TokenUtil.getUserId();
+      print(userId);
+      if (userId == null || userId.isEmpty) {
+        setState(() {
+          isLoading = false;
+          errorMsg = '未获取到用户信息';
+        });
+        return;
+      }
+      // 发送请求：使用封装的get方法，传入路径和路径参数
+      final response = await get(
+        '/users', // 路径模板
+        queryParameters: {'Id': userId},
+      );
+      print(userId);
+      if (response.statusCode == 200) {
+
+        if (response.data['base']['code'] == 10000) {
+          setState(() {
+            userInfo = response.data['data'];
+            isLoading = false;
+          });
+        } else {
+          setState(() {
+            isLoading = false;
+            errorMsg = response.data['base']['msg'] ?? '获取用户信息失败';
+          });
+        }
+      } else {
+        setState(() {
+          isLoading = false;
+          errorMsg = '请求失败，状态码：${response.statusCode}';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+        errorMsg = '获取信息出错：${e.toString()}';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +91,8 @@ class StudentHomePage extends StatelessWidget {
   icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
   //顶部返回跳到登录页面
   onPressed: () {
+    // 清除本地用户信息
+    TokenUtil.clearTokens();
     Navigator.pushReplacementNamed(context, '/login');
   },
 ),
@@ -67,16 +133,19 @@ systemOverlayStyle: SystemUiOverlayStyle.dark,
                 SizedBox(height: 12),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
-                  children: const [
+                  children: [
                     Text(
-                      '小明同学',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                      userInfo?['username'] ?? '未知用户',
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w900),
                     ),
-                    SizedBox(height: 2),
+                    const SizedBox(height: 2),
                     Text(
-                      '账号：20240001',
-                      style: TextStyle(fontSize: 14, color: Colors.black54, fontWeight: FontWeight.w600),
+                      '账号：${userInfo?['userId'] ?? '未知账号'}',
+                      style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.black54,
+                          fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -115,6 +184,8 @@ systemOverlayStyle: SystemUiOverlayStyle.dark,
             child: TextButton(
               //退出跳到登录页面
               onPressed: () {
+                // 清除本地用户信息
+                TokenUtil.clearTokens();
                 Navigator.pushReplacementNamed(context, '/login');
               },
               child: const Text(
