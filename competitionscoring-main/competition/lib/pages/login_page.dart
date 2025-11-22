@@ -16,43 +16,6 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _accountController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  // // 模拟账号
-  // // 测试用
-  // final String teacherAccount = 'teacher';
-  // final String teacherPassword = '123456';
-  // final String studentAccount = 'student';
-  // final String studentPassword = '123456';
-  // final String adminAccount = 'admin';
-  // final String adminPassword = '123456';
-  // //测试用
-  // void _login() {
-  //   final account = _accountController.text.trim();
-  //   final password = _passwordController.text.trim();
-  //
-  //   // 简单验证账号密码跳转导员与学生首页
-  //   if (account == teacherAccount && password == teacherPassword) {
-  //
-  //     Navigator.pushReplacementNamed(context, '/teacherHome');
-  //
-  //   } else if (account == studentAccount && password == studentPassword) {
-  //
-  //     Navigator.pushReplacementNamed(context, '/studentHome');
-  //
-  //   } else if (account == adminAccount && password == adminPassword) {
-  //
-  //     Navigator.pushReplacementNamed(context, '/adminHome');
-  //
-  //   }else {
-  //     // 账号密码错误提示
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(
-  //         content: Text('账号或密码错误'),
-  //         backgroundColor: Colors.redAccent,
-  //       ),
-  //     );
-  //   }
-  // }
-
   void _login() async {
     final account = _accountController.text.trim();
     final password = _passwordController.text.trim();
@@ -93,7 +56,14 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       // 4. 保存Token到本地
-      await TokenUtil.saveTokens(accessToken, refreshToken);
+      // 新增：提取userId（根据后端返回格式）
+      String userId = response.data["data"]["userId"].toString();
+      if (userId.isEmpty) {
+        throw Exception("未获取到用户ID");
+      }
+
+      // 保存Token和userId到本地
+      await TokenUtil.saveTokens(accessToken, refreshToken, userId);
 
       // 5. 处理响应体，判断登录状态和用户角色
       var responseData = response.data; // 响应体数据
