@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:competition/util/http.dart';
+import 'package:competition/util/token_util.dart';
 
 class AdminHomePage extends StatefulWidget {
   const AdminHomePage({super.key});
@@ -12,12 +14,70 @@ class AdminHomePage extends StatefulWidget {
 
 class _AdminHomePageState extends State<AdminHomePage> {
   late String formattedDate;
+  // 存储用户信息
+  Map<String, dynamic>? userInfo;
+  bool isLoading = true;
+  String errorMsg = '';
 
   @override
   void initState() {
     super.initState();
     formattedDate = DateFormat('yyyy年MM月dd日 HH:mm').format(DateTime.now());
+    // 初始化时获取用户信息
+    _fetchUserInfo();
   }
+
+  // 获取用户信息
+  Future<void> _fetchUserInfo() async {
+    try {
+      // 从本地存储获取userId（假设TokenUtil中有获取userId的方法）
+      String? userId = await TokenUtil.getUserId();
+      print(userId);
+      if (userId == null || userId.isEmpty) {
+        setState(() {
+          isLoading = false;
+          errorMsg = '未获取到用户信息';
+        });
+        return;
+      }
+      // 发送请求：使用封装的get方法，传入路径和路径参数
+      final response = await get(
+        '/users', // 路径模板
+        queryParameters: {'Id': userId},
+      );
+      print(userId);
+      if (response.statusCode == 200) {
+
+        if (response.data['base']['code'] == 10000) {
+          setState(() {
+            userInfo = response.data['data'];
+            isLoading = false;
+          });
+        } else {
+          setState(() {
+            isLoading = false;
+            errorMsg = response.data['base']['msg'] ?? '获取用户信息失败';
+          });
+        }
+      } else {
+        setState(() {
+          isLoading = false;
+          errorMsg = '请求失败，状态码：${response.statusCode}';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+        errorMsg = '获取信息出错：${e.toString()}';
+      });
+    }
+  }
+
+  // @override
+  // void initState() {
+  //   super.initState();
+  //   formattedDate = DateFormat('yyyy年MM月dd日 HH:mm').format(DateTime.now());
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +107,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
             size: 20,
           ),
           onPressed: () {
+            TokenUtil.clearTokens();
             Navigator.pushNamedAndRemoveUntil(
               context,
               '/login',
@@ -79,15 +140,19 @@ class _AdminHomePageState extends State<AdminHomePage> {
                       size: 44,
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    '管理员',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 5),
+                  //const SizedBox(height: 2),
                   Text(
-                    '账号：0001',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                    userInfo?['username'] ?? '未知用户',
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '账号：${userInfo?['userId'] ?? '未知账号'}',
+                    style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.black54,
+                        fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
