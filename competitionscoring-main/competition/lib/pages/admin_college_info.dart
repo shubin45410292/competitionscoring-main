@@ -1,6 +1,7 @@
 // 学院信息管理页面(管理员端)
 
 import 'package:competition/util/edit_college_dialog.dart';
+import 'package:competition/util/add_college_dialog.dart';
 import 'package:competition/util/token_util.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -166,38 +167,38 @@ class _CollegeInfoPageState extends State<CollegeInfoPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // 搜索栏
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.15),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  prefixIcon: IconButton(
-                    icon: const Icon(Icons.search),
-                    onPressed: () {}, // 预留搜索操作
-                  ),
-                  hintText: '搜索学院或专业',
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    vertical: 12,
-                    horizontal: 8,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
+            // // 搜索栏
+            // Container(
+            //   width: double.infinity,
+            //   decoration: BoxDecoration(
+            //     color: Colors.white,
+            //     borderRadius: BorderRadius.circular(8),
+            //     boxShadow: [
+            //       BoxShadow(
+            //         color: Colors.grey.withOpacity(0.15),
+            //         blurRadius: 8,
+            //         offset: const Offset(0, 2),
+            //       ),
+            //     ],
+            //   ),
+            //   child: TextField(
+            //     controller: _searchController,
+            //     decoration: InputDecoration(
+            //       prefixIcon: IconButton(
+            //         icon: const Icon(Icons.search),
+            //         onPressed: () {}, // 预留搜索操作
+            //       ),
+            //       hintText: '搜索学院或专业',
+            //       border: InputBorder.none,
+            //       contentPadding: const EdgeInsets.symmetric(
+            //         vertical: 12,
+            //         horizontal: 8,
+            //       ),
+            //     ),
+            //   ),
+            // ),
+            //
+            // const SizedBox(height: 20),
 
             // 下拉筛选行
             Row(
@@ -291,7 +292,19 @@ class _CollegeInfoPageState extends State<CollegeInfoPage> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    showModalBottomSheet( // 显示底部弹窗（Flutter内置方法）
+                        context: context, // 上下文
+                        isScrollControlled: true, // 弹窗高度自适应内容（可全屏）
+                        backgroundColor: Colors.white, // 弹窗背景色：白色
+                        shape: const RoundedRectangleBorder( // 弹窗形状：顶部圆角
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(18), // 顶部圆角半径18
+                          ),
+                        ),
+                        builder: (_) => const AddCollegeDialog(), // 弹窗内容：新增学院的对话框
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue[600],
                     foregroundColor: Colors.white,
@@ -347,11 +360,11 @@ class _CollegeInfoPageState extends State<CollegeInfoPage> {
                   child: const Text('上一页'),
                 ),
                 Text(
-                  '$currentPage/5',
+                  '$currentPage/1',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 TextButton(
-                  onPressed: currentPage < 5
+                  onPressed: currentPage < 2
                       ? () {
                     setState(() => currentPage++);
                     _loadCollegeData(); // 重新加载学院（会联动加载专业）
