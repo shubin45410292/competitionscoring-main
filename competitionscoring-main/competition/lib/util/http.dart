@@ -52,10 +52,26 @@ Future<Response> get(
       Map<String, dynamic>? queryParameters, // 专门用于GET请求的查询参数
     }) async {
   try {
-    // 调用dio.get时，使用queryParameters传递参数（而非data）
+    // 1. 拼接基础URL和路径（baseUrl在dio初始化时已设置，如"http://204.152.192.27:8080/api"）
+    String fullUrl = "${dio.options.baseUrl}$path";
+
+    // 2. 如果有查询参数，拼接成?key=value&key2=value2格式
+    if (queryParameters != null && queryParameters.isNotEmpty) {
+      List<String> queryParts = [];
+      queryParameters.forEach((key, value) {
+        // 对参数值进行URL编码（避免特殊字符导致错误）
+        queryParts.add("$key=${Uri.encodeComponent(value.toString())}");
+      });
+      fullUrl += "?${queryParts.join('&')}";
+    }
+
+    // 3. 打印完整URL
+    print("最终请求URL：$fullUrl");
+
+    // 4. 执行请求
     Response response = await dio.get(
       path,
-      queryParameters: queryParameters, // 关键修改：GET参数用queryParameters
+      queryParameters: queryParameters,
     );
     return response;
   } catch (e) {
@@ -74,10 +90,10 @@ Future<T> delete<T>(String path, {Map<String, dynamic>? params}) async {
 }
 
 // PUT请求封装（常用于全量更新资源）
-Future<T> put<T>(String path, {dynamic data}) async {
+Future<Response> put(String path, {dynamic data}) async {
   try {
     Response response = await dio.put(path, data: data);
-    return response.data;
+    return response;
   } catch (e) {
     throw Exception("PUT请求失败：${_formatError(e)}");
   }
@@ -113,3 +129,4 @@ String _formatError(dynamic e) {
   }
   return e.toString();
 }
+
