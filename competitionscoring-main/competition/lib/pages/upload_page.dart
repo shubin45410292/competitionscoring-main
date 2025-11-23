@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:competition/util/token_util.dart';
 import 'package:competition/util/http.dart'; // 导入你的HTTP请求封装
+import 'package:competition/util/upload_file_dialog.dart';
 
 // 材料数据模型（对应后端返回格式）
 class MaterialItem {
@@ -259,6 +260,7 @@ class _UploadPageState extends State<UploadPage> {
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -280,27 +282,36 @@ class _UploadPageState extends State<UploadPage> {
         child: ListView(
           children: [
             // 上传区域（保持原有样式）
-            Container(
-              height: 200,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade200, style: BorderStyle.solid),
-                borderRadius: BorderRadius.circular(8),
-                color: Colors.white,
-              ),
-              alignment: Alignment.center,
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '点击此处自动或手动上传奖项',
-                    style: TextStyle(fontSize: 13, color: Colors.black),
-                  ),
-                  SizedBox(height: 6),
-                  Text(
-                    '支持PDF、DOC、JPG、PNG格式，单个文件不超过50MB',
-                    style: TextStyle(fontSize: 10, color: Colors.black54),
-                  ),
-                ],
+            GestureDetector(
+              onTap: () {
+                // 点击上传区域时显示文件上传对话框
+                showDialog(
+                  context: context,
+                  builder: (context) => const UploadFileDialog(),
+                );
+              },
+              child: Container(
+                height: 200,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade200, style: BorderStyle.solid),
+                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.white,
+                ),
+                alignment: Alignment.center,
+                child: const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '点击此处自动或手动上传奖项',
+                      style: TextStyle(fontSize: 13, color: Colors.black),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      '支持PDF、DOC、JPG、PNG格式，单个文件不超过50MB',
+                      style: TextStyle(fontSize: 10, color: Colors.black54),
+                    ),
+                  ],
+                ),
               ),
             ),
 
