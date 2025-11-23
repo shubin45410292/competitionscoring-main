@@ -7,8 +7,8 @@ const String baseUrl = "http://204.152.192.27:8080/api";
 // 创建Dio实例并添加拦截器
 final Dio dio = Dio(BaseOptions(
   baseUrl: baseUrl,
-  connectTimeout: const Duration(seconds: 5),
-  receiveTimeout: const Duration(seconds: 5),
+  connectTimeout: const Duration(seconds: 22),
+  receiveTimeout: const Duration(seconds: 22),
   headers: {
     "Content-Type": "application/json", // 显式指定JSON格式
   },
