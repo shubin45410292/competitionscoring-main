@@ -89,7 +89,8 @@ class _EditCollegeDialogState extends State<EditCollegeDialog> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 36, vertical: 12),
                   ),
-                  child: const Text('确定'),
+                  child: const Text('确定',style: TextStyle(color: Colors.white),),
+
                 ),
               ],
             ),

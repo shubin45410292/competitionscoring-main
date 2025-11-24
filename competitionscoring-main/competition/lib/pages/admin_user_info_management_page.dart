@@ -1,6 +1,9 @@
 //用户信息管理页面(管理员端)
 
+import 'package:competition/util/addUserDialog.dart';
 import 'package:flutter/material.dart';
+
+import '../util/edit_college_dialog.dart';
 
 class AdminUserInfoManagementPage extends StatefulWidget {
   const AdminUserInfoManagementPage({super.key});
@@ -34,15 +37,16 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
 
   @override
   Widget build(BuildContext context) {
-
     const Color primaryBlue = Color(0xFF4A90E2);
     const Color bgColor = Color(0xFFF7F8FA);
     const double cardRadius = 12;
 
     // 当前页数据
+    // 当前页数据
     final start = (currentPage - 1) * itemsPerPage;
-    final end = (start + itemsPerPage).clamp(0, allData.length);
+    final end = (start + itemsPerPage).clamp(0, allData.length);  // 确保end不超过allData的长度
     final currentData = allData.sublist(start, end);
+
 
     return Scaffold(
       appBar: AppBar(
@@ -68,7 +72,7 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
             Navigator.pushNamedAndRemoveUntil(
               context,
               '/adminHome',
-              (route) => false,
+                  (route) => false,
             );
           },
         ),
@@ -166,37 +170,122 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
             ),
             const Divider(thickness: 1, height: 1),
 
-            // 分页控制
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton(
-                    onPressed: currentPage > 1
-                        ? () => setState(() => currentPage--)
-                        : null,
-                    child: const Text('上一页'),
+            // 操作按钮
+            // 操作按钮
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.white,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(18),
+                        ),
+                      ),
+                      builder: (_) => const AddUserDialog(),// 添加用户弹窗组件
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[600],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                   ),
-                  const SizedBox(width: 20),
-                  Text(
-                    '$currentPage / ${((allData.length - 1) ~/ itemsPerPage) + 1}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  child: const Text('新增'),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.white,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(18),
+                        ),
+                      ),
+                      builder: (_) => const EditCollegeDialog(),// 修改用户信息组件
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[600],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                   ),
-                  const SizedBox(width: 20),
-                  ElevatedButton(
-                    onPressed: end < allData.length
-                        ? () => setState(() => currentPage++)
-                        : null,
-                    child: const Text('下一页'),
+                  child: const Text('修改'),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.white,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(18),
+                        ),
+                      ),
+                      builder: (_) => const EditCollegeDialog(),// 修改用户信息组件
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[600],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                   ),
-                ],
-                
-              ),
+                  child: const Text('删除'),
+                ),
+              ],
             ),
-            
+
+
+            const SizedBox(height: 12),
+
+            // 分页控制
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: currentPage > 1
+                      ? () => setState(() => currentPage--)
+                      : null,
+                  child: const Text('上一页'),
+                ),
+                Text(
+                  '$currentPage/5',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                TextButton(
+                  onPressed: currentPage < 5
+                      ? () => setState(() => currentPage++)
+                      : null,
+                  child: const Text('下一页'),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // 底部状态栏
+            const Text(
+              '2025年10月9日 14:30   系统版本v2.3.1   服务状态：正常',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
           ],
-          
         ),
       ),
     );
