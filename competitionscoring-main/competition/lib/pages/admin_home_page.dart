@@ -1,5 +1,4 @@
 // 个人主页页面(管理员端)
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:competition/util/http.dart';
@@ -14,7 +13,6 @@ class AdminHomePage extends StatefulWidget {
 
 class _AdminHomePageState extends State<AdminHomePage> {
   late String formattedDate;
-  // 存储用户信息
   Map<String, dynamic>? userInfo;
   bool isLoading = true;
   String errorMsg = '';
@@ -23,16 +21,21 @@ class _AdminHomePageState extends State<AdminHomePage> {
   void initState() {
     super.initState();
     formattedDate = DateFormat('yyyy年MM月dd日 HH:mm').format(DateTime.now());
-    // 初始化时获取用户信息
     _fetchUserInfo();
   }
 
-  // 获取用户信息
+  // 获取用户信息（关键修复：所有setState前检查mounted）
   Future<void> _fetchUserInfo() async {
     try {
-      // 从本地存储获取userId（假设TokenUtil中有获取userId的方法）
+      // 1. 发起请求前检查页面是否已挂载
+      if (!mounted) return;
+
       String? userId = await TokenUtil.getUserId();
       print(userId);
+
+      // 2. 获取userId后检查挂载
+      if (!mounted) return;
+
       if (userId == null || userId.isEmpty) {
         setState(() {
           isLoading = false;
@@ -40,14 +43,17 @@ class _AdminHomePageState extends State<AdminHomePage> {
         });
         return;
       }
-      // 发送请求：使用封装的get方法，传入路径和路径参数
+
       final response = await get(
-        '/users', // 路径模板
+        '/users',
         queryParameters: {'Id': userId},
       );
       print(userId);
-      if (response.statusCode == 200) {
 
+      // 3. 接口回调后检查挂载（关键！避免页面已销毁仍执行setState）
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
         if (response.data['base']['code'] == 10000) {
           setState(() {
             userInfo = response.data['data'];
@@ -66,18 +72,15 @@ class _AdminHomePageState extends State<AdminHomePage> {
         });
       }
     } catch (e) {
+      // 4. 异常回调后检查挂载
+      if (!mounted) return;
+
       setState(() {
         isLoading = false;
         errorMsg = '获取信息出错：${e.toString()}';
       });
     }
   }
-
-  // @override
-  // void initState() {
-  //   super.initState();
-  //   formattedDate = DateFormat('yyyy年MM月dd日 HH:mm').format(DateTime.now());
-  // }
 
   @override
   Widget build(BuildContext context) {
@@ -107,11 +110,12 @@ class _AdminHomePageState extends State<AdminHomePage> {
             size: 20,
           ),
           onPressed: () {
+            // 退出登录时先清空token，再跳转
             TokenUtil.clearTokens();
             Navigator.pushNamedAndRemoveUntil(
               context,
               '/login',
-              (route) => false,
+                  (route) => false,
             );
           },
         ),
@@ -120,7 +124,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
         child: Column(
           children: [
-            // 用户信息卡片
+            // 用户信息卡片（添加加载状态和错误提示）
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 28),
@@ -129,7 +133,16 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 borderRadius: BorderRadius.circular(cardRadius),
                 border: Border.all(color: Colors.black12.withOpacity(0.05)),
               ),
-              child: Column(
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator(color: primaryBlue))
+                  : errorMsg.isNotEmpty
+                  ? Center(
+                child: Text(
+                  errorMsg,
+                  style: const TextStyle(color: Colors.red, fontSize: 16),
+                ),
+              )
+                  : Column(
                 children: [
                   CircleAvatar(
                     radius: 36,
@@ -140,7 +153,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                       size: 44,
                     ),
                   ),
-                  //const SizedBox(height: 2),
+                  const SizedBox(height: 2),
                   Text(
                     userInfo?['username'] ?? '未知用户',
                     style: const TextStyle(
@@ -160,37 +173,31 @@ class _AdminHomePageState extends State<AdminHomePage> {
             const SizedBox(height: 26),
 
             // 四个功能模块
-
-            // 学院信息管理跳转
             _buildFlatCard(Icons.school_rounded, primaryBlue, '学院信息管理', () {
               Navigator.pushReplacementNamed(context, '/adminCollegeInfo');
             }),
-
-            // 用户信息管理跳转
 
             _buildFlatCard(
               Icons.people_alt_rounded,
               Colors.green,
               '用户信息管理',
-              () {
+                  () {
                 Navigator.pushReplacementNamed(context, '/adminUserInfoManagement');
               },
             ),
 
-            // 竞赛信息管理跳转
             _buildFlatCard(
               Icons.emoji_events_rounded,
               Colors.orange,
               '奖项认定信息管理',
-              () {},
+                  () {},
             ),
 
-            // 积分权重规则管理跳转
             _buildFlatCard(
               Icons.rule_rounded,
               Colors.redAccent,
               '积分权重规则管理',
-              () {
+                  () {
                 Navigator.pushReplacementNamed(context, '/adminScoreRules');
               },
             ),
@@ -210,11 +217,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
   }
 
   Widget _buildFlatCard(
-    IconData icon,
-    Color color,
-    String title,
-    VoidCallback onTap,
-  ) {
+      IconData icon,
+      Color color,
+      String title,
+      VoidCallback onTap,
+      ) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
