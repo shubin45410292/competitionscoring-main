@@ -119,10 +119,10 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
                   setState(() => selectedCollege = v!);
                 }),
                 const SizedBox(width: 8),
-                _buildDropdown('专业', selectedMajor, majorOptions, (v) {
-                  setState(() => selectedMajor = v!);
-                }),
-                const SizedBox(width: 8),
+                // _buildDropdown('专业', selectedMajor, majorOptions, (v) {
+                //   setState(() => selectedMajor = v!);
+                // }),
+                // const SizedBox(width: 8),
                 _buildDropdown('角色', selectedRole, roleOptions, (v) {
                   setState(() => selectedRole = v!);
                 }),
@@ -199,56 +199,56 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
                   ),
                   child: const Text('新增'),
                 ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: () {
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.white,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(18),
-                        ),
-                      ),
-                      builder: (_) => const EditCollegeDialog(),// 修改用户信息组件
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[600],
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
-                    ),
-                  ),
-                  child: const Text('修改'),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: () {
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.white,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(18),
-                        ),
-                      ),
-                      builder: (_) => const EditCollegeDialog(),// 修改用户信息组件
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[600],
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
-                    ),
-                  ),
-                  child: const Text('删除'),
-                ),
+                // const SizedBox(width: 12),
+                // ElevatedButton(
+                //   onPressed: () {
+                //     showModalBottomSheet(
+                //       context: context,
+                //       isScrollControlled: true,
+                //       backgroundColor: Colors.white,
+                //       shape: const RoundedRectangleBorder(
+                //         borderRadius: BorderRadius.vertical(
+                //           top: Radius.circular(18),
+                //         ),
+                //       ),
+                //       builder: (_) => const EditCollegeDialog(),// 修改用户信息组件
+                //     );
+                //   },
+                //   style: ElevatedButton.styleFrom(
+                //     backgroundColor: Colors.blue[600],
+                //     foregroundColor: Colors.white,
+                //     padding: const EdgeInsets.symmetric(
+                //       horizontal: 20,
+                //       vertical: 10,
+                //     ),
+                //   ),
+                //   child: const Text('修改'),
+                // ),
+                // const SizedBox(width: 12),
+                // ElevatedButton(
+                //   onPressed: () {
+                //     showModalBottomSheet(
+                //       context: context,
+                //       isScrollControlled: true,
+                //       backgroundColor: Colors.white,
+                //       shape: const RoundedRectangleBorder(
+                //         borderRadius: BorderRadius.vertical(
+                //           top: Radius.circular(18),
+                //         ),
+                //       ),
+                //       builder: (_) => const EditCollegeDialog(),// 修改用户信息组件
+                //     );
+                //   },
+                //   style: ElevatedButton.styleFrom(
+                //     backgroundColor: Colors.blue[600],
+                //     foregroundColor: Colors.white,
+                //     padding: const EdgeInsets.symmetric(
+                //       horizontal: 20,
+                //       vertical: 10,
+                //     ),
+                //   ),
+                //   child: const Text('删除'),
+                // ),
               ],
             ),
 
