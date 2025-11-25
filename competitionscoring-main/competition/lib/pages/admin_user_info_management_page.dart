@@ -1,6 +1,8 @@
 //用户信息管理页面(管理员端)
 
 import 'package:competition/util/addUserDialog.dart';
+import 'package:competition/util/deleteUserDialog.dart';
+import 'package:competition/util/editUserDialog.dart';
 import 'package:flutter/material.dart';
 
 import '../util/edit_college_dialog.dart';
@@ -211,7 +213,7 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
                 //           top: Radius.circular(18),
                 //         ),
                 //       ),
-                //       builder: (_) => const EditCollegeDialog(),// 修改用户信息组件
+                //       builder: (_) => const EditUserDialog(),// 修改用户信息组件
                 //     );
                 //   },
                 //   style: ElevatedButton.styleFrom(
@@ -236,7 +238,7 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
                 //           top: Radius.circular(18),
                 //         ),
                 //       ),
-                //       builder: (_) => const EditCollegeDialog(),// 修改用户信息组件
+                //       builder: (_) => const DeleteUserDialog(),// 删除用户信息组件
                 //     );
                 //   },
                 //   style: ElevatedButton.styleFrom(
