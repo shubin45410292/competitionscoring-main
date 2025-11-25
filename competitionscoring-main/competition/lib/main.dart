@@ -1,3 +1,4 @@
+import 'package:competition/pages/admin_award_page.dart';
 import 'package:competition/pages/admin_college_info.dart';
 import 'package:competition/pages/admin_score_rules.dart';
 import 'package:competition/pages/admin_user_info_management_page.dart';
@@ -33,6 +34,8 @@ class ScoreSystemApp extends StatelessWidget {
         '/adminCollegeInfo': (context) => const CollegeInfoPage(),
         '/adminScoreRules': (context) => const ScoreRulesPage(),
         '/adminUserInfoManagement': (context) => const AdminUserInfoManagementPage(),
+        '/adminAward': (context) => const AdminAwardPage(),
+
       },
     );
   }

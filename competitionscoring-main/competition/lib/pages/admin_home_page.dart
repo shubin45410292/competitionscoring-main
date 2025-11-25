@@ -190,7 +190,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
               Icons.emoji_events_rounded,
               Colors.orange,
               '奖项认定信息管理',
-                  () {},
+                  () {
+                Navigator.pushReplacementNamed(context, '/adminAward');
+              },
             ),
 
             _buildFlatCard(
