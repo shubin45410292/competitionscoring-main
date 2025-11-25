@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'upload_page.dart';
 import 'score_detail_page.dart';
 import 'appeal_record_page.dart';
+import 'feedback_page.dart';
 import 'package:competition/util/http.dart';
 import 'package:competition/util/token_util.dart';
 
@@ -170,14 +171,20 @@ systemOverlayStyle: SystemUiOverlayStyle.dark,
             page: const ScoreDetailPage(),
           ),
           _buildMenuItem(
-            context,
-            icon: Icons.description,
-            color: Colors.orange,
-            title: '申诉记录',
-            page: const AppealRecordPage(),
-          ),
-
-          const SizedBox(height: 40),
+              context,
+              icon: Icons.description,
+              color: Colors.orange,
+              title: '申诉记录',
+              page: const AppealRecordPage(),
+            ),
+            _buildMenuItem(
+              context,
+              icon: Icons.feedback_outlined,
+              color: Colors.red,
+              title: '问题与反馈',
+              page: const FeedbackPage(),
+            ),
+            const SizedBox(height: 40),
 
           // 退出按钮
           Center(

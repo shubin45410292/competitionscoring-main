@@ -7,6 +7,7 @@ import 'package:competition/util/http.dart';
 import 'ranking_page.dart';
 import 'student_appeal_page.dart';
 import 'login_page.dart';
+import 'feedback_page.dart';
 import 'package:competition/util/token_util.dart';
 
 class TeacherHomePage extends StatefulWidget {
@@ -179,7 +180,13 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
               title: '学生申诉',
               page: const StudentAppealPage(),
             ),
-
+            _buildMenuItem(
+              context,
+              icon: Icons.feedback,
+              color: Colors.orange,
+              title: '问题与反馈',
+              page: const FeedbackPage(),
+            ),
             const SizedBox(height: 40),
 
             // 退出按钮
