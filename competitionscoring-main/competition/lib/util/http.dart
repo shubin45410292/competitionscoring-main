@@ -9,9 +9,9 @@ final Dio dio = Dio(BaseOptions(
   baseUrl: baseUrl,
   connectTimeout: const Duration(seconds: 22),
   receiveTimeout: const Duration(seconds: 22),
-  headers: {
+  /*headers: {
     "Content-Type": "application/json", // 显式指定JSON格式
-  },
+  },*/
 ))..interceptors.add(
   InterceptorsWrapper(
     // 请求发送前拦截：添加Token到请求头
@@ -35,6 +35,30 @@ final Dio dio = Dio(BaseOptions(
     },
   ),
 );
+
+// 新增：专门用于提交multipart/form-data的POST方法
+Future<Response> postFormData(String path, {required FormData formData}) async {
+  try {
+    print("请求头Content-Type: ${Headers.multipartFormDataContentType}"); // 确认格式
+
+    Response response = await dio.post(
+      path,
+      data: formData,
+      options: Options(
+        contentType: Headers.multipartFormDataContentType, // 显式指定表单格式
+        // 新增：允许400状态，获取后端错误详情
+        validateStatus: (status) => status! < 500,
+      ),
+    );
+    // 若状态码是400，直接抛出后端返回的错误信息
+    if (response.statusCode == 400) {
+      throw Exception("后端参数错误: ${response.data}");
+    }
+    return response;
+  } catch (e) {
+    throw Exception("POST表单请求失败：$e");
+  }
+}
 
 // POST请求封装
 Future<Response> post(String path, {dynamic data}) async {

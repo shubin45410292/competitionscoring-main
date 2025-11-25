@@ -1,12 +1,12 @@
 import 'package:competition/util/http.dart';
+import 'package:dio/dio.dart';
+import 'package:competition/util/token_util.dart';
 
 class ScoreRuleService {
   // 获取所有积分规则
   static Future<Map<String, dynamic>> getScoreRules({
     int pageNum = 1,
     int pageSize = 10,
-    String? keyword,
-    int? type, // 1:通用规则 2:特殊规则
   }) async {
     try {
       final response = await get(
@@ -40,19 +40,23 @@ class ScoreRuleService {
   // 创建积分规则
   static Future<void> createScoreRule(Map<String, dynamic> data) async {
     try{
-      await post(
+      // 按接口文档组装FormData
+      FormData formData = FormData.fromMap({
+        'event_level': data['eventLevel'] ?? '', // 赛事级别（string）
+        'event_weight': data['eventWeight'] ?? 1.0, // 赛事权重（number）
+        'integral': (data['baseScore'] ?? 0).toInt(), // 基础积分（integer）
+        'award_level': data['awardLevel'] ?? '', // 获奖等级（string）
+        'rule_desc': data['ruleDescription'] ?? '', // 规则说明（string）
+        'recognized_event_id': data['recognizedEventId'] ?? '0', // 关联赛事id（string）
+      });
+
+      await postFormData(
         '/admin/rule/upload',
-        data: {
-          'event_level': data['eventLevel'] ?? '', // 用前端传入的赛事级别
-          'event_weight': data['eventWeight'] ?? 1.0, // 用前端传入的赛事权重
-          'integral': data['baseScore'] ?? 0, // 对应接口的“基础分”字段（参考接口文档）
-          'award_level': data['awardLevel'] ?? '', // 用前端传入的奖项级别
-          'rule_desc': data['ruleDescription'] ?? '', // 对应接口的“规则描述”字段
-          'recognized_event_id': data['recognizedEventId'] ?? 0, // 用前端传入的赛事ID
-        },
+        formData: formData,
       );
     }
     catch (e) {
+      print("创建规则错误详情: $e");
       throw Exception('创建规则失败: $e');
     }
   }
@@ -67,8 +71,63 @@ class ScoreRuleService {
 
   // 删除积分规则
   static Future<void> deleteScoreRule(String id) async {
-    await delete(
-      '/admin/rule/delete/$id',
-    );
+    try {
+      // 1. 按后端要求：用FormData传递rule_id（Body参数，multipart/form-data格式）
+      if (id.isEmpty || id == 'null') {
+        throw Exception('规则ID为空或无效');
+      }
+      print("Service层：删除规则ID = $id"); // 确认ID传递到服务层
+      FormData formData = FormData.fromMap({
+        'rule_id': id,
+      });
+
+      // 打印完整请求信息（便于后端联调）
+      print("=== 删除接口请求信息 ===");
+      print("请求路径: /admin/rule/delete");
+      print("请求参数: rule_id = $id");
+      print("请求方法: DELETE");
+      
+      Response response = await dio.delete(
+        '/admin/rule/delete',
+        data: FormData.fromMap({
+          'rule_id': id,
+        }),
+        options: Options(
+          headers: {
+            'Access-Token': await TokenUtil.getAccessToken(),
+            'Refresh-Token': await TokenUtil.getRefreshToken(),
+            'Content-Type': 'multipart/form-data',
+          },
+        ),
+      );
+
+      // 打印后端返回结果
+      print("=== 删除接口响应信息 ===");
+      print("后端返回状态码: ${response.statusCode}");
+      print("后端返回数据: ${response.data}");
+
+      // 根据状态码判断是否成功
+      if (response.statusCode == 404) {
+        throw Exception('接口不存在：请确认删除规则的正确路径');
+      }
+      if (response.statusCode != 200) {
+        throw Exception('删除失败：${response.data['msg'] ?? '后端处理失败'}');
+      }
+      if (response.data is Map && response.data['code'] != null && response.data['code'] != 200) {
+        throw Exception('后端处理失败: ${response.data['msg'] ?? '未知错误'}');
+      }
+
+    } catch (e) {
+      print("=== 删除接口异常 ===");
+      if (e is DioException) {
+        print("Dio错误类型: ${e.type}");
+        print("响应状态码: ${e.response?.statusCode}");
+        print("响应数据: ${e.response?.data}");
+        print("错误信息: ${e.message}");
+      } else {
+        print("普通异常: $e");
+      }
+      throw Exception('删除失败: ${e.toString().split(':').last.trim()}');
+    }
   }
 }

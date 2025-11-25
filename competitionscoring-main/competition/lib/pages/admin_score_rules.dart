@@ -404,7 +404,7 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
     );
   }
 
-  // 编辑规则对话框（保持不变）
+  // 编辑规则对话框
   void _showEditRuleDialog(ScoreRule rule) {
     final eventLevelController = TextEditingController(text: rule.eventLevel);
     final awardLevelController = TextEditingController(text: rule.awardLevel);
@@ -466,7 +466,7 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
     );
   }
 
-  // 删除确认对话框（保持不变）
+  // 删除确认对话框
   void _showDeleteConfirmationDialog(ScoreRule rule) {
     showDialog(
       context: context,
@@ -480,17 +480,35 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
           ),
           TextButton(
             onPressed: () async {
-              if (!mounted) return;
+              // 1. 保存全局ScaffoldMessenger（关键：不依赖页面上下文）
+              final scaffoldMessenger = ScaffoldMessenger.of(Navigator.of(context).context);
+              Navigator.pop(context);
+              
+              print("待删除规则ID: ${rule.ruleId}");
+              if (rule.ruleId.isEmpty || rule.ruleId == 'null') {
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(content: Text('删除失败：规则ID无效')),
+                );
+                return;
+              }
+
               try {
                 await ScoreRuleService.deleteScoreRule(rule.ruleId);
-                Navigator.pop(context);
-                _fetchAllScoreRules(); // 重新获取所有规则，刷新列表
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('规则已删除')),
+                
+                // 刷新列表（仅在页面挂载时执行）
+                if (mounted) {
+                  await _fetchAllScoreRules();
+                }
+                
+                // 使用全局ScaffoldMessenger显示提示
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(content: Text('规则已成功删除')),
                 );
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('删除失败: ${e.toString()}')),
+                print("删除失败详情: $e");
+                // 全局提示，避免上下文问题
+                scaffoldMessenger.showSnackBar(
+                  SnackBar(content: Text('删除失败：$e'), backgroundColor: Colors.red),
                 );
               }
             },
@@ -501,73 +519,232 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
     );
   }
 
-  // 新建规则对话框（保持不变）
-  void _showCreateRuleDialog() {
-    final eventLevelController = TextEditingController();
-    final awardLevelController = TextEditingController();
-    final eventWeightController = TextEditingController(text: '1.0');
-    final awardWeightController = TextEditingController(text: '1.0');
-    final baseScoreController = TextEditingController();
-    final ruleDescriptionController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('新建积分规则'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildFormField('规则描述', ruleDescriptionController),
-              _buildFormField('赛事级别', eventLevelController),
-              _buildFormField('奖项级别', awardLevelController),
-              _buildFormField('赛事权重系数', eventWeightController,
-                  keyboardType: TextInputType.numberWithOptions(decimal: true)),
-              _buildFormField('奖项权重系数', awardWeightController,
-                  keyboardType: TextInputType.numberWithOptions(decimal: true)),
-              _buildFormField('基础分', baseScoreController, keyboardType: TextInputType.number),
-            ],
-          ),
+  // 统一创建表单格式
+  Widget _buildRequiredFormField({
+    required String label,
+    required TextEditingController controller,
+    required String hintText,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          decoration: InputDecoration(
+            hintText: hintText,
+            border: const OutlineInputBorder(),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           ),
-          TextButton(
-            onPressed: () async {
-              if (!mounted) return;
-              try {
-                final newRule = {
-                  'recognizedEventId': '0',
-                  'eventLevel': eventLevelController.text,
-                  'eventWeight': double.tryParse(eventWeightController.text) ?? 1.0,
-                  'baseScore': double.tryParse(baseScoreController.text) ?? 0.0,
-                  'ruleDescription': ruleDescriptionController.text,
-                  'isEditable': false,
-                  'awardLevel': awardLevelController.text,
-                  'awardWeight': double.tryParse(awardWeightController.text) ?? 1.0,
-                };
-                await ScoreRuleService.createScoreRule(newRule);
-                Navigator.pop(context);
-                _fetchAllScoreRules(); // 重新获取所有规则，刷新列表
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('规则创建成功')),
-                );
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('创建失败: ${e.toString()}')),
-                );
-              }
-            },
-            child: const Text('保存'),
-          ),
-        ],
-      ),
+          onSubmitted: (value) => controller.text = value.trim(),
+        ),
+      ],
     );
   }
 
-  // 构建表单字段（保持不变）
+  // 新建规则对话框
+  void _showCreateRuleDialog() {
+    // 1. 初始化表单控制器
+    final ruleDescriptionController = TextEditingController();
+    final eventLevelController = TextEditingController();
+    final awardLevelController = TextEditingController();
+    final eventWeightController = TextEditingController(text: '1.0');
+    final baseScoreController = TextEditingController();
+    // 赛事ID控制器（输入0=通用规则，其他=特殊规则）
+    final eventIdController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext dialogContext, StateSetter setState) {
+            // 实时判断规则类型（根据赛事ID值）
+            bool isGeneralRule() {
+              return eventIdController.text.trim() == '0';
+            }
+
+            return AlertDialog(
+              title: const Text('新建积分规则'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    // 2. 赛事ID输入框（区分通用/特殊规则）
+                    const Text(
+                      '赛事ID *',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: eventIdController,
+                      keyboardType: TextInputType.number, // 仅允许输入数字
+                      decoration: InputDecoration(
+                        hintText: '输入0为通用规则，输入其他数字为特殊规则',
+                        border: const OutlineInputBorder(),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        // 实时提示当前规则类型
+                        helperText: isGeneralRule() 
+                            ? '当前为：通用规则（无需关联具体赛事）' 
+                            : '当前为：特殊规则（关联赛事ID：${eventIdController.text.trim()}）',
+                        helperStyle: TextStyle(
+                          color: isGeneralRule() ? Colors.green : Colors.blue,
+                        ),
+                      ),
+                      // 实时更新UI，显示当前规则类型
+                      onChanged: (value) => setState(() {}),
+                    ),
+                    // 赛事ID非空校验提示
+                    if (eventIdController.text.trim().isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: Text(
+                          '请输入赛事ID（0=通用规则，其他=特殊规则）',
+                          style: TextStyle(color: Colors.red, fontSize: 12),
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+
+                    // 3. 其他固定表单项（按接口文档要求，均为必填）
+                    // 规则描述
+                    _buildRequiredFormField(
+                      label: '规则描述 *',
+                      controller: ruleDescriptionController,
+                      hintText: '如“国家级赛事一等奖通用规则”',
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 赛事级别
+                    _buildRequiredFormField(
+                      label: '赛事级别 *',
+                      controller: eventLevelController,
+                      hintText: '如“国际级”“国家级”“省级”“校级”',
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 奖项级别
+                    _buildRequiredFormField(
+                      label: '奖项级别 *',
+                      controller: awardLevelController,
+                      hintText: '如“一等奖”“二等奖”“三等奖”',
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 赛事权重系数
+                    _buildRequiredFormField(
+                      label: '赛事权重系数 *',
+                      controller: eventWeightController,
+                      hintText: '如1.0',
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 基础分
+                    _buildRequiredFormField(
+                      label: '基础分 *',
+                      controller: baseScoreController,
+                      hintText: '如100',
+                      keyboardType: TextInputType.number,
+                    ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                // 取消按钮
+                TextButton(
+                  child: const Text('取消'),
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                ),
+                // 保存按钮（含完整表单校验与参数构造）
+                TextButton(
+                  child: const Text('保存'),
+                  onPressed: () async {
+                    if (!mounted) return;
+
+                    // 4. 表单校验（严格匹配接口文档必填项）
+                    String? errorMsg;
+                    final eventId = eventIdController.text.trim();
+                    // 赛事ID校验：非空且为纯数字
+                    if (eventId.isEmpty) {
+                      errorMsg = '请输入赛事ID（0=通用规则，其他=特殊规则）';
+                    } else if (int.tryParse(eventId) == null) {
+                      errorMsg = '赛事ID必须为数字（0=通用规则，其他=特殊规则）';
+                    } else if (ruleDescriptionController.text.trim().isEmpty) {
+                      errorMsg = '请输入规则描述';
+                    } else if (eventLevelController.text.trim().isEmpty) {
+                      errorMsg = '请输入赛事级别';
+                    } else if (awardLevelController.text.trim().isEmpty) {
+                      errorMsg = '请输入奖项级别';
+                    } else if (eventWeightController.text.trim().isEmpty) {
+                      errorMsg = '请输入赛事权重系数';
+                    } else if (baseScoreController.text.trim().isEmpty) {
+                      errorMsg = '请输入基础分';
+                    }
+
+                    // 校验不通过：显示错误提示
+                    if (errorMsg != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(errorMsg), backgroundColor: Colors.orange),
+                      );
+                      return;
+                    }
+
+                    // 5. 构造请求参数
+                    final Map<String, dynamic> ruleData = {
+                      'recognizedEventId': eventId, // 直接传递赛事ID（0=通用，其他=特殊）
+                      'ruleDescription': ruleDescriptionController.text.trim(),
+                      'eventLevel': eventLevelController.text.trim(),
+                      'awardLevel': awardLevelController.text.trim(),
+                      'eventWeight': double.tryParse(eventWeightController.text.trim()) ?? 1.0,
+                      'baseScore': int.tryParse(baseScoreController.text.trim()) ?? 0,
+                      'isEditable': false, // 固定值，非接口必填项
+                    };
+
+                    try {
+                      // 6. 调用创建接口（按接口文档用postFormData）
+                      await ScoreRuleService.createScoreRule(ruleData);
+                      
+                      // 7. 关闭弹窗并刷新列表
+                      Navigator.of(dialogContext).pop();
+                      await _fetchAllScoreRules();
+                      
+                      // 8. 成功提示（区分规则类型）
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            isGeneralRule() 
+                                ? '通用规则创建成功' 
+                                : '特殊规则（赛事ID：$eventId）创建成功'
+                          ),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    } catch (e) {
+                      // 9. 错误提示（含后端返回信息）
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('创建失败：${e.toString().replaceAll('Exception: ', '')}'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // 构建表单字段
   Widget _buildFormField(String label, TextEditingController controller, {TextInputType keyboardType = TextInputType.text}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
