@@ -27,13 +27,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
   // 获取用户信息（关键修复：所有setState前检查mounted）
   Future<void> _fetchUserInfo() async {
     try {
-      // 1. 发起请求前检查页面是否已挂载
       if (!mounted) return;
 
       String? userId = await TokenUtil.getUserId();
-      print(userId);
-
-      // 2. 获取userId后检查挂载
       if (!mounted) return;
 
       if (userId == null || userId.isEmpty) {
@@ -48,9 +44,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
         '/users',
         queryParameters: {'Id': userId},
       );
-      print(userId);
 
-      // 3. 接口回调后检查挂载（关键！避免页面已销毁仍执行setState）
       if (!mounted) return;
 
       if (response.statusCode == 200) {
@@ -72,7 +66,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
         });
       }
     } catch (e) {
-      // 4. 异常回调后检查挂载
       if (!mounted) return;
 
       setState(() {
@@ -110,21 +103,21 @@ class _AdminHomePageState extends State<AdminHomePage> {
             size: 20,
           ),
           onPressed: () {
-            // 退出登录时先清空token，再跳转
             TokenUtil.clearTokens();
             Navigator.pushNamedAndRemoveUntil(
               context,
               '/login',
-                  (route) => false,
+              (route) => false,
             );
           },
         ),
       ),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
         child: Column(
           children: [
-            // 用户信息卡片（添加加载状态和错误提示）
+            /// ---------- 用户信息卡片 ----------
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 28),
@@ -134,7 +127,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 border: Border.all(color: Colors.black12.withOpacity(0.05)),
               ),
               child: isLoading
-                  ? const Center(child: CircularProgressIndicator(color: primaryBlue))
+                  ? const Center(
+                child: CircularProgressIndicator(color: primaryBlue),
+              )
                   : errorMsg.isNotEmpty
                   ? Center(
                 child: Text(
@@ -170,43 +165,48 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 ],
               ),
             ),
+
             const SizedBox(height: 26),
 
-            // 四个功能模块
-            _buildFlatCard(Icons.school_rounded, primaryBlue, '学院信息管理', () {
-              Navigator.pushReplacementNamed(context, '/adminCollegeInfo');
-            }),
+            /// ---------- 功能入口 ----------
+            _buildFlatCard(
+              Icons.school_rounded,
+              primaryBlue,
+              '学院信息管理',
+                  () => Navigator.pushReplacementNamed(context, '/adminCollegeInfo'),
+            ),
 
             _buildFlatCard(
               Icons.people_alt_rounded,
               Colors.green,
               '用户信息管理',
-                  () {
-                Navigator.pushReplacementNamed(context, '/adminUserInfoManagement');
-              },
+                  () => Navigator.pushReplacementNamed(context, '/adminUserInfoManagement'),
             ),
 
             _buildFlatCard(
               Icons.emoji_events_rounded,
               Colors.orange,
               '奖项认定信息管理',
-                  () {
-                Navigator.pushReplacementNamed(context, '/adminAward');
-              },
+                  () => Navigator.pushReplacementNamed(context, '/adminAward'),
             ),
 
             _buildFlatCard(
               Icons.rule_rounded,
               Colors.redAccent,
               '积分权重规则管理',
-                  () {
-                Navigator.pushReplacementNamed(context, '/adminScoreRules');
-              },
+                  () => Navigator.pushReplacementNamed(context, '/adminScoreRules'),
+            ),
+
+            _buildFlatCard(
+              Icons.feedback_rounded,
+              Colors.blueGrey,
+              '意见反馈管理',
+                  () => Navigator.pushReplacementNamed(context, '/adminFeedback'),
             ),
 
             const SizedBox(height: 26),
 
-            // 底部状态栏
+            /// ---------- 底部状态 ----------
             Text(
               '$formattedDate  ｜  版本 v2.3.1  ｜  服务状态：正常',
               style: const TextStyle(fontSize: 10, color: Colors.grey),
@@ -218,6 +218,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
     );
   }
 
+  /// 通用扁平入口卡片
   Widget _buildFlatCard(
       IconData icon,
       Color color,

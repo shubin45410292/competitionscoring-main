@@ -8,6 +8,7 @@ import 'package:competition/pages/teacher_home_page.dart';
 import 'package:competition/pages/login_page.dart';
 import 'package:competition/pages/register_page.dart';
 import 'package:competition/pages/admin_home_page.dart';
+import 'package:competition/pages/admin_feedback_page.dart';
 import 'package:flutter/material.dart';
 
 void main() => runApp(const ScoreSystemApp());
@@ -35,7 +36,7 @@ class ScoreSystemApp extends StatelessWidget {
         '/adminScoreRules': (context) => const ScoreRulesPage(),
         '/adminUserInfoManagement': (context) => const AdminUserInfoManagementPage(),
         '/adminAward': (context) => const AdminAwardPage(),
-
+        '/adminFeedback': (context) => const AdminFeedbackPage(),
       },
     );
   }
