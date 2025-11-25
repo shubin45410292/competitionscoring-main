@@ -1,7 +1,9 @@
-//  学生申诉页面(教师端)
+// 学生申诉页面(教师端)
 
 import 'package:flutter/material.dart';
 import 'appeal_detail_dialog.dart';
+import 'package:competition/util/http.dart';
+import 'package:competition/util/token_util.dart';
 
 class StudentAppealPage extends StatefulWidget {
   const StudentAppealPage({super.key});
@@ -13,41 +15,143 @@ class StudentAppealPage extends StatefulWidget {
 class _StudentAppealPageState extends State<StudentAppealPage> {
   String selectedYear = '2024-2025';
   String selectedLevel = '全部';
-  String selectedStatus = '待审核';
+  String selectedStatus = '待审核'; // 保持原样
 
   final List<String> yearOptions = ['2024-2025', '2023-2024', '2022-2023'];
   final List<String> levelOptions = ['全部', '校级', '省级', '国家级'];
-  final List<String> statusOptions = ['待审核', '审核通过', '审核驳回'];
+  final List<String> statusOptions = ['待审核', '审核通过', '审核驳回']; // 保持原样
 
-  final List<Map<String, dynamic>> appeals = [
-    {
-      'title': '全国大学生数学建模竞赛',
-      'date': '2024-09-16',
-      'info': '2024-09-15 团队一等奖',
-      'content': '积分计算有误，实际应为16.0',
-      'student': '小明',
-      'status': '待审核',
-      'color': Colors.orange
-    },
-    {
-      'title': '大学生创新创业大赛',
-      'date': '2024-07-11',
-      'info': '2024-07-10 二等奖',
-      'content': '赛事信息错误，团队成员信息有误',
-      'student': '小红',
-      'status': '审核通过',
-      'color': Color.fromARGB(255, 138, 200, 113)
-    },
-    {
-      'title': '电子设计竞赛校选拔赛',
-      'date': '2024-05-21',
-      'info': '2024-05-20 优胜奖',
-      'content': '对优胜奖积分有疑问，希望重新评估',
-      'student': '小刚',
-      'status': '审核驳回',
-      'color': Color.fromARGB(255, 232, 93, 80)
-    },
-  ];
+  List<Map<String, dynamic>> appeals = [];
+  bool isLoading = true;
+  String errorMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppeals();
+  }
+
+  // 状态映射：前端状态 -> 后端状态
+  String _getApiStatus(String uiStatus) {
+    switch (uiStatus) {
+      case '待审核':
+        return 'pending';
+      case '审核通过':
+        return 'approved';
+      case '审核驳回':
+        return 'rejected';
+      default:
+        return 'pending';
+    }
+  }
+
+  // 状态映射：后端状态 -> 前端状态
+  String _getUiStatus(String apiStatus) {
+    switch (apiStatus) {
+      case 'pending':
+        return '待审核';
+      case 'approved':
+        return '审核通过';
+      case 'rejected':
+        return '审核驳回';
+      default:
+        return '待审核';
+    }
+  }
+
+  // 从后端加载申诉数据
+  Future<void> _loadAppeals() async {
+  try {
+    setState(() {
+      isLoading = true;
+      errorMessage = '';
+    });
+
+    Map<String, dynamic> queryParams = {};
+    if (selectedStatus != '全部') {
+      queryParams['status'] = _getApiStatus(selectedStatus);
+    }
+
+    print('发送请求，参数: $queryParams'); // 调试输出
+    
+    final response = await get('/admin/query/appeal/stu', queryParameters: queryParams);
+    
+    print('收到响应: ${response.data}'); // 调试输出
+    
+    if (response.data['base']['code'] == 10000) {
+      final items = response.data['data']['items'] as List<dynamic>;
+      print('获取到 ${items.length} 条申诉数据'); // 调试输出
+      
+      setState(() {
+        appeals = items.map((item) {
+          return _convertApiDataToAppeal(item);
+        }).toList();
+      });
+    } else {
+      final errorMsg = response.data['base']['msg'] ?? '请求失败';
+      print('API返回错误: $errorMsg');
+      throw Exception(errorMsg);
+    }
+  } catch (e) {
+    print('加载申诉数据异常: $e');
+    setState(() {
+      errorMessage = '加载失败: ${e.toString()}';
+      appeals = [];
+    });
+  } finally {
+    setState(() {
+      isLoading = false;
+    });
+  }
+}
+
+  // 将API数据转换为前端使用的格式
+  Map<String, dynamic> _convertApiDataToAppeal(dynamic apiData) {
+    // 状态颜色映射
+    Color statusColor = Colors.orange;
+    String uiStatus = _getUiStatus(apiData['status'] ?? 'pending');
+    
+    switch (uiStatus) {
+      case '审核通过':
+        statusColor = const Color.fromARGB(255, 138, 200, 113);
+        break;
+      case '审核驳回':
+        statusColor = const Color.fromARGB(255, 232, 93, 80);
+        break;
+      case '待审核':
+      default:
+        statusColor = Colors.orange;
+        break;
+    }
+
+    // 时间戳转换
+    String formatDate(int timestamp) {
+      if (timestamp == 0) return '未知时间';
+      final date = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    }
+
+    // 生成显示信息
+    String generateInfo(dynamic data) {
+      return '${data['appeal_type'] ?? "分级异议"} - 申诉ID: ${data['appeal_id']}';
+    }
+
+    // 生成学生显示信息
+    String generateStudentInfo(dynamic data) {
+      return '学号: ${data['user_id']}';
+    }
+
+    return {
+      'title': apiData['appeal_type'] ?? '分级异议',
+      'date': formatDate(int.tryParse(apiData['created_at']?.toString() ?? '0') ?? 0),
+      'info': generateInfo(apiData),
+      'content': apiData['appeal_reason'] ?? '无申诉原因',
+      'student': generateStudentInfo(apiData),
+      'status': uiStatus,
+      'color': statusColor,
+      'original_data': apiData, // 保存原始数据供详情对话框使用
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +171,7 @@ class _StudentAppealPageState extends State<StudentAppealPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // 顶部筛选行
+            // 顶部筛选行 - 完全保持不变
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -80,105 +184,130 @@ class _StudentAppealPageState extends State<StudentAppealPage> {
                 }),
                 const SizedBox(width: 10),
                 _buildDropdown('状态', selectedStatus, statusOptions, (v) {
-                  setState(() => selectedStatus = v!);
+                  setState(() {
+                    selectedStatus = v!;
+                    _loadAppeals(); // 状态改变时重新加载数据
+                  });
                 }),
               ],
             ),
             const SizedBox(height: 16),
 
-            // 内容卡片列表
-            Expanded(
-              child: ListView.builder(
-                itemCount: appeals.length,
-                itemBuilder: (context, index) {
-                  final item = appeals[index];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.15),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              item['title'],
+            // 加载状态显示
+            if (isLoading)
+              const Expanded(
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (errorMessage.isNotEmpty)
+              Expanded(
+                child: Center(
+                  child: Text(
+                    errorMessage,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
+              )
+            else if (appeals.isEmpty)
+              const Expanded(
+                child: Center(
+                  child: Text('暂无申诉数据'),
+                ),
+              )
+            else
+              // 内容卡片列表 - 完全保持不变
+              Expanded(
+                child: ListView.builder(
+                  itemCount: appeals.length,
+                  itemBuilder: (context, index) {
+                    final item = appeals[index];
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.15),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                item['title'],
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 15),
+                          Text('申诉时间：${item['date']}',
                               style: const TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 14),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 15),
-                        Text('申诉时间：${item['date']}',
-                            style: const TextStyle(
-                                fontSize: 13, color: Colors.black87)),
-                        Text('识别信息：${item['info']}',
-                            style: const TextStyle(
-                                fontSize: 13, color: Colors.black87)),
-                        Text('申诉内容：${item['content']}',
-                            style: const TextStyle(
-                                fontSize: 13, color: Colors.black87)),
-                        Text('申诉人：${item['student']}',
-                            style: const TextStyle(
-                                fontSize: 13, color: Colors.black87)),
-                        const SizedBox(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-Align(
-  alignment: Alignment.centerRight,
-  child: GestureDetector(
-    onTap: () {
-      if (item['status'] == '待审核') {
-        _showDetailDialog(item, index);
-      }
-    },
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
-      decoration: BoxDecoration(
-        color: item['color'],
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: item['color']),
-      ),
-      child: Text(
-        item['status'],
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    ),
-  ),
-),
-
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                                  fontSize: 13, color: Colors.black87)),
+                          Text('识别信息：${item['info']}',
+                              style: const TextStyle(
+                                  fontSize: 13, color: Colors.black87)),
+                          Text('申诉内容：${item['content']}',
+                              style: const TextStyle(
+                                  fontSize: 13, color: Colors.black87)),
+                          Text('申诉人：${item['student']}',
+                              style: const TextStyle(
+                                  fontSize: 13, color: Colors.black87)),
+                          const SizedBox(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    if (item['status'] == '待审核') {
+                                      _showDetailDialog(item, index);
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: item['color'],
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: item['color']),
+                                    ),
+                                    child: Text(
+                                      item['status'],
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
           ],
         ),
       ),
     );
   }
 
-  // 通用下拉菜单构建
+  // 通用下拉菜单构建 - 完全保持不变
   Widget _buildDropdown(String label, String value, List<String> options,
       ValueChanged<String?> onChanged) {
     return Expanded(
@@ -207,26 +336,34 @@ Align(
   }
 
   void _showDetailDialog(Map<String, dynamic> item, int index) {
-  showDialog(
-    context: context,
-    builder: (context) => AppealDetailDialog(
-      item: item,
-      onApprove: () {
-        setState(() {
-          appeals[index]['status'] = '审核通过';
-          appeals[index]['color'] = const Color.fromARGB(255, 138, 200, 113);
-        });
-        Navigator.pop(context);
-      },
-      onReject: () {
-        setState(() {
-          appeals[index]['status'] = '审核驳回';
-          appeals[index]['color'] = const Color.fromARGB(255, 232, 93, 80);
-        });
-        Navigator.pop(context);
-      },
-    ),
-  );
-}
+    showDialog(
+      context: context,
+      builder: (context) => AppealDetailDialog(
+        item: item,
+        onApprove: () {
+          // TODO: 调用后端审核通过接口
+          _handleAppealReview(item['original_data']['appeal_id'], true);
+        },
+        onReject: () {
+          // TODO: 调用后端审核驳回接口
+          _handleAppealReview(item['original_data']['appeal_id'], false);
+        },
+      ),
+    );
+  }
 
+  // 处理申诉审核
+  Future<void> _handleAppealReview(String appealId, bool isApprove) async {
+    try {
+      // TODO: 调用后端审核接口
+      // 这里需要根据实际的后端审核接口来实现
+      print('处理申诉: $appealId, 操作: ${isApprove ? '通过' : '驳回'}');
+      
+      // 模拟处理成功后刷新数据
+      _loadAppeals();
+    } catch (e) {
+      print('处理申诉失败: $e');
+      // 可以在这里添加错误提示
+    }
+  }
 }
