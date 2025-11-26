@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:competition/util/score_rule_service.dart';
+import 'package:collection/collection.dart'; // 用于安全获取列表元素
 
 class ScoreRulesPage extends StatefulWidget {
   const ScoreRulesPage({super.key});
@@ -46,6 +47,7 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
   bool _isLoading = true;
   String? _errorMsg;
   int totalItems = 0; // 总规则数
+  String? _highlightedRuleId; // 用于标记需要高亮的规则ID
 
   @override
   void initState() {
@@ -54,42 +56,48 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
     _fetchAllScoreRules(); // 初始化时获取所有规则
   }
 
-  // 关键修改：获取所有规则（取消分页请求，一次性获取全部）
+  // 获取所有规则（取消分页请求，一次性获取全部）
   Future<void> _fetchAllScoreRules() async {
+    setState(() {
+      _isLoading = true;
+      allRules = [];
+      filteredRules = [];
+      currentPageRules = [];
+    });
+
     try {
-      if (!mounted) return;
-
-      setState(() {
-        _isLoading = true;
-        _errorMsg = null;
-        allRules = [];
-      });
-
-      // 发起请求：取消pageNum和pageSize参数（或传空，让后端返回全部）
-      // 若后端强制要求分页参数，可传 pageNum=1, pageSize=100（确保覆盖44条）
       final rawData = await ScoreRuleService.getScoreRules(
-        pageNum: 1, // 固定第一页
-        pageSize: 100, 
+        pageNum: 1,
+        pageSize: 100,
       );
 
       if (!mounted) return;
-
       if (rawData is! Map<String, dynamic>) {
         throw Exception('接口返回格式错误：预期Map，实际${rawData.runtimeType}');
       }
 
-      // 提取并解析所有规则（处理嵌套List结构）
       final Map<String, dynamic> itemsMap = rawData['items'] as Map<String, dynamic>? ?? {};
       final List<dynamic> itemsList = itemsMap.values.toList();
       List<ScoreRule> validRules = [];
 
-      // 解析所有层级的数据（支持嵌套List）
       for (var item in itemsList) {
-        // 处理嵌套List（核心：提取所有层级的规则）
+        // 处理嵌套List
         if (item is List<dynamic>) {
           for (var subItem in item) {
             if (subItem is Map<String, dynamic> &&
                 (subItem.containsKey('rule_id') || subItem.containsKey('rule_desc'))) {
+              // 计算最新的baseScore（从后端integral字段读取）
+              final double parsedBaseScore = subItem['integral'] is num
+                  ? (subItem['integral'] as num).toDouble()
+                  : (double.tryParse(subItem['integral'].toString()) ?? 0.0);
+
+              // 打印调试日志（仅针对目标规则）
+              if (subItem['rule_id']?.toString() == '90911') {
+                debugPrint('嵌套List解析（ID:90911）：');
+                debugPrint('- 后端integral: ${subItem['integral']}');
+                debugPrint('- 解析baseScore: $parsedBaseScore');
+              }
+
               validRules.add(ScoreRule(
                 ruleId: subItem['rule_id']?.toString() ?? '',
                 recognizedEventId: subItem['recognized_event_id']?.toString() ?? '',
@@ -97,9 +105,7 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
                 eventWeight: subItem['event_weight'] is num
                     ? (subItem['event_weight'] as num).toDouble()
                     : (double.tryParse(subItem['event_weight'].toString()) ?? 0.0),
-                baseScore: subItem['integral'] is num
-                    ? (subItem['integral'] as num).toDouble()
-                    : (double.tryParse(subItem['integral'].toString()) ?? 0.0),
+                baseScore: parsedBaseScore,
                 ruleDescription: subItem['rule_desc']?.toString() ?? '无描述',
                 isEditable: subItem['is_editable'] is bool ? subItem['is_editable'] : false,
                 awardLevel: subItem['award_level']?.toString() ?? '未设置',
@@ -107,9 +113,21 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
             }
           }
         }
-        // 处理直接的Map类型规则
+        // 处理直接的Map类型
         else if (item is Map<String, dynamic> &&
             (item.containsKey('rule_id') || item.containsKey('rule_desc'))) {
+          // 计算最新的baseScore（从后端integral字段读取）
+          final double parsedBaseScore = item['integral'] is num
+              ? (item['integral'] as num).toDouble()
+              : (double.tryParse(item['integral'].toString()) ?? 0.0);
+
+          // 打印调试日志（仅针对目标规则）
+          if (item['rule_id']?.toString() == '90911') {
+            debugPrint('Map解析（ID:90911）：');
+            debugPrint('- 后端integral: ${item['integral']}');
+            debugPrint('- 解析baseScore: $parsedBaseScore');
+          }
+
           validRules.add(ScoreRule(
             ruleId: item['rule_id']?.toString() ?? '',
             recognizedEventId: item['recognized_event_id']?.toString() ?? '',
@@ -117,9 +135,7 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
             eventWeight: item['event_weight'] is num
                 ? (item['event_weight'] as num).toDouble()
                 : (double.tryParse(item['event_weight'].toString()) ?? 0.0),
-            baseScore: item['integral'] is num
-                ? (item['integral'] as num).toDouble()
-                : (double.tryParse(item['integral'].toString()) ?? 0.0),
+            baseScore: parsedBaseScore, // 使用解析后的最新值
             ruleDescription: item['rule_desc']?.toString() ?? '无描述',
             isEditable: item['is_editable'] is bool ? item['is_editable'] : false,
             awardLevel: item['award_level']?.toString() ?? '未设置',
@@ -127,17 +143,26 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
         }
       }
 
-      // 关键：设置总规则数（优先用后端返回的total，若无效则用解析后的数量）
+      // 设置总规则数
       dynamic total = rawData['total'];
       totalItems = total is int && total > 0 ? total : validRules.length;
 
       if (!mounted) return;
-
       setState(() {
         allRules = validRules;
-        _filterRules(); // 初始化过滤（无搜索条件时显示所有）
+        _filterRules();
         _isLoading = false;
       });
+
+      // 调试日志：确认最终数据（使用firstWhereOrNull避免异常）
+      ScoreRule? updatedRule = validRules.firstWhereOrNull((r) => r.ruleId == '90911');
+      if (updatedRule != null) {
+        debugPrint('最终显示数据（ID:90911）：');
+        debugPrint('- eventWeight: ${updatedRule.eventWeight}');
+        debugPrint('- baseScore: ${updatedRule.baseScore}');
+      } else {
+        debugPrint('未找到ID为90911的规则');
+      }
 
       // 调试日志：确认数据量
       debugPrint('=== 积分规则获取完成 ===');
@@ -148,9 +173,7 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
     } catch (e, stackTrace) {
       debugPrint('获取规则失败：$e');
       debugPrint('堆栈信息：$stackTrace');
-
       if (!mounted) return;
-
       setState(() {
         _isLoading = false;
         _errorMsg = '获取规则失败: ${e.toString().replaceAll('Exception: ', '')}';
@@ -161,20 +184,24 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
   // 过滤规则（搜索功能）
   void _filterRules() {
     setState(() {
-      String searchText = _searchController.text.toLowerCase();
-      // 搜索过滤：匹配规则名称、赛事级别、奖项级别
+      String searchText = _searchController.text.trim().toLowerCase();
       filteredRules = allRules.where((rule) {
-        return rule.ruleName.toLowerCase().contains(searchText) ||
+        // 支持按规则ID精准搜索（完全匹配）
+        bool matchRuleId = rule.ruleId.toLowerCase() == searchText;
+        // 模糊匹配规则名称、赛事级别、奖项级别
+        bool matchFuzzy = rule.ruleName.toLowerCase().contains(searchText) ||
             rule.eventLevel.toLowerCase().contains(searchText) ||
             rule.awardLevel.toLowerCase().contains(searchText);
+        // 优先精准匹配ID，再模糊匹配其他字段
+        return matchRuleId || matchFuzzy;
       }).toList();
-      // 过滤后重置到第一页
+      // 搜索后自动跳转到第一页（若有匹配结果）
       currentPage = 1;
-      _updateCurrentPageRules(); // 更新当前页数据
+      _updateCurrentPageRules();
     });
   }
 
-  // 关键修改：更新当前页规则（本地分页逻辑）
+  // 更新当前页规则（本地分页逻辑）
   void _updateCurrentPageRules() {
     int startIndex = (currentPage - 1) * itemsPerPage;
     int endIndex = startIndex + itemsPerPage;
@@ -187,6 +214,26 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
       endIndex = filteredRules.length;
     }
     currentPageRules = filteredRules.sublist(startIndex, endIndex);
+    // 若搜索结果仅1条，触发高亮动画
+    if (filteredRules.length == 1) {
+      _highlightSingleResult();
+    }
+  }
+
+  // 高亮动画方法（增强视觉体验）
+  void _highlightSingleResult() {
+    if (mounted && currentPageRules.isNotEmpty) {
+      // 这里用状态变量控制高亮，配合UI组件实现闪烁/变色效果
+      setState(() {
+        _highlightedRuleId = currentPageRules.first.ruleId;
+      });
+      // 2秒后取消高亮
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() => _highlightedRuleId = null);
+        }
+      });
+    }
   }
 
   // 切换分页（上一页/下一页）
@@ -253,10 +300,11 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
                     onPressed: () {
                       _searchController.clear();
                       _filterRules();
+                      setState(() => _highlightedRuleId = null); // 清空搜索时取消高亮
                     },
                   )
                       : null,
-                  hintText: '搜索规则（名称/赛事级别/奖项级别）',
+                  hintText: '搜索规则（名称/赛事级别/奖项级别/规则id）',
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                 ),
@@ -323,10 +371,17 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
 
   // 规则卡片
   Widget _buildRuleCard(ScoreRule rule) {
+    // 判断是否需要高亮（搜索结果仅1条时）
+    bool isHighlighted = _highlightedRuleId == rule.ruleId;
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      elevation: isHighlighted ? 6 : 2, // 高亮时提升阴影
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8),
+                                    side: isHighlighted 
+                                    ? const BorderSide(color: Colors.blue, width: 2) // 高亮边框
+                                    : BorderSide.none
+                                    ),
+      color: isHighlighted ? Colors.blue[50] : Colors.white, // 高亮背景色
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -406,8 +461,8 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
 
   // 编辑规则对话框
   void _showEditRuleDialog(ScoreRule rule) {
-    final eventLevelController = TextEditingController(text: rule.eventLevel);
-    final awardLevelController = TextEditingController(text: rule.awardLevel);
+    //final eventLevelController = TextEditingController(text: rule.eventLevel);
+    //final awardLevelController = TextEditingController(text: rule.awardLevel);
     final eventWeightController = TextEditingController(text: rule.eventWeight.toString());
     final baseScoreController = TextEditingController(text: rule.baseScore.toString());
     final ruleDescriptionController = TextEditingController(text: rule.ruleDescription);
@@ -420,12 +475,12 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildFormField('规则描述', ruleDescriptionController),
-              _buildFormField('赛事级别', eventLevelController),
-              _buildFormField('奖项级别', awardLevelController),
-              _buildFormField('赛事权重系数', eventWeightController,
+              _buildFormField('规则描述 *', ruleDescriptionController),
+              //_buildFormField('赛事级别', eventLevelController),
+              //_buildFormField('奖项级别', awardLevelController),
+              _buildFormField('赛事权重系数 *', eventWeightController,
                   keyboardType: TextInputType.numberWithOptions(decimal: true)),
-              _buildFormField('基础分', baseScoreController, keyboardType: TextInputType.number),
+              _buildFormField('基础分 *', baseScoreController, keyboardType: TextInputType.number),
             ],
           ),
         ),
@@ -436,26 +491,87 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
           ),
           TextButton(
             onPressed: () async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
               if (!mounted) return;
               try {
+                // 1. 前端表单校验（避免无效参数）
+                String? errorMsg;
+                final ruleDesc = ruleDescriptionController.text.trim();
+                final eventWeight = double.tryParse(eventWeightController.text);
+                final baseScore = int.tryParse(baseScoreController.text);
+
+                if (ruleDesc.isEmpty) {
+                  errorMsg = '规则说明不能为空';
+                } else if (eventWeight == null) {
+                  errorMsg = '赛事权重必须是数字（如1.0）';
+                } else if (baseScore == null) {
+                  errorMsg = '基础分必须是整数（如100）';
+                }
+
+                if (errorMsg != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(errorMsg), backgroundColor: Colors.orange),
+                  );
+                  return;
+                }
+
+                // 2. 组装参数（严格匹配接口要求的key）
                 final updatedRule = {
-                  'recognizedEventId': rule.recognizedEventId,
-                  'eventLevel': eventLevelController.text,
-                  'eventWeight': double.tryParse(eventWeightController.text) ?? rule.eventWeight,
-                  'baseScore': double.tryParse(baseScoreController.text) ?? rule.baseScore,
-                  'ruleDescription': ruleDescriptionController.text,
-                  'isEditable': rule.isEditable,
-                  'awardLevel': awardLevelController.text,
+                  'ruleDescription': ruleDesc, // 前端字段名
+                  'eventWeight': eventWeight,  // 前端字段名
+                  'baseScore': baseScore,      // 前端字段名
                 };
-                await ScoreRuleService.updateScoreRule(rule.ruleId, updatedRule);
-                Navigator.pop(context);
-                _fetchAllScoreRules(); // 重新获取所有规则，刷新列表
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('规则已更新')),
+
+                // 新增日志：确认前端编辑的新值
+                print("=== 前端编辑的新参数 ===");
+                print("ruleDescription: $ruleDesc");
+                print("eventWeight: $eventWeight（类型：${eventWeight.runtimeType}）");
+                print("baseScore: $baseScore（类型：${baseScore.runtimeType}）");
+
+                // 调用更新接口并接收响应数据
+                final updateResponse = await ScoreRuleService.updateScoreRule(rule.ruleId, updatedRule);
+
+                // 关键：从更新接口的响应中提取最新数据，直接更新本地缓存
+                if (updateResponse != null && updateResponse['data'] != null) {
+                  final Map<String, dynamic> latestRuleData = updateResponse['data'];
+                  setState(() {
+                    // 找到本地列表中对应规则并替换
+                    int ruleIndex = allRules.indexWhere((r) => r.ruleId == rule.ruleId);
+                    if (ruleIndex != -1) {
+                      allRules[ruleIndex] = ScoreRule(
+                        ruleId: latestRuleData['rule_id']?.toString() ?? rule.ruleId,
+                        recognizedEventId: latestRuleData['recognized_event_id']?.toString() ?? rule.recognizedEventId,
+                        eventLevel: latestRuleData['event_level']?.toString() ?? rule.eventLevel,
+                        eventWeight: latestRuleData['event_weight'] is num
+                            ? (latestRuleData['event_weight'] as num).toDouble()
+                            : rule.eventWeight,
+                        baseScore: latestRuleData['integral'] is num
+                            ? (latestRuleData['integral'] as num).toDouble()
+                            : rule.baseScore,
+                        ruleDescription: latestRuleData['rule_desc']?.toString() ?? rule.ruleDescription,
+                        isEditable: latestRuleData['is_editable'] ?? rule.isEditable,
+                        awardLevel: latestRuleData['award_level']?.toString() ?? rule.awardLevel,
+                      );
+                      // 同步更新过滤列表和当前页数据
+                      filteredRules = List.from(allRules);
+                      _updateCurrentPageRules();
+                    }
+                  });
+                }
+
+                // 提示成功并关闭弹窗
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(content: Text('规则更新成功'), backgroundColor: Colors.green),
                 );
+                Navigator.pop(context);
+
+                // 延迟调用查询接口（确保后端最终同步）
+                 await Future.delayed(const Duration(seconds: 1));
+                 await _fetchAllScoreRules();
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('更新失败: ${e.toString()}')),
+                // 5. 错误提示（显示后端具体信息）
+                scaffoldMessenger.showSnackBar(
+                SnackBar(content: Text('更新失败: $e'), backgroundColor: Colors.red),
                 );
               }
             },
@@ -480,7 +596,7 @@ class _ScoreRulesPageState extends State<ScoreRulesPage> {
           ),
           TextButton(
             onPressed: () async {
-              // 1. 保存全局ScaffoldMessenger（关键：不依赖页面上下文）
+              // 1. 保存全局ScaffoldMessenger
               final scaffoldMessenger = ScaffoldMessenger.of(Navigator.of(context).context);
               Navigator.pop(context);
               
