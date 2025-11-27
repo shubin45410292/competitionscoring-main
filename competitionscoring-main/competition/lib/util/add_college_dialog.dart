@@ -14,14 +14,13 @@ class CollegeModel {
 
   // 从JSON解析模型（将int类型的CollegeId转为String）
   factory CollegeModel.fromJson(Map<String, dynamic> json) {
-    // 处理后端返回的int类型CollegeId，转为String
+    //处理后端返回的int类型CollegeId，转为String
     String id = '';
     if (json['CollegeId'] is int) {
       id = json['CollegeId'].toString(); // int转String
     } else if (json['CollegeId'] is String) {
       id = json['CollegeId']; // 若后端返回String，直接使用
     }
-
     return CollegeModel(
       collegeId: id,
       collegeName: json['CollegeName'] ?? '未知学院',
@@ -56,7 +55,7 @@ class _AddCollegeDialogState extends State<AddCollegeDialog> {
     _fetchCollegeList();
   }
 
-  // 从后端获取学院列表（page_size=10，page_num=1）
+  // 从后端获取学院列表
   Future<void> _fetchCollegeList() async {
     setState(() {
       _isLoadingColleges = true;
@@ -64,9 +63,9 @@ class _AddCollegeDialogState extends State<AddCollegeDialog> {
     });
 
     try {
-      // 构造查询参数（强制page_size=10，page_num=1）
+      // 构造查询参数
       Map<String, dynamic> queryParams = {
-        'page_size': 10,
+        'page_size': 25,
         'page_num': 1,
       };
 
@@ -110,15 +109,13 @@ class _AddCollegeDialogState extends State<AddCollegeDialog> {
     }
 
     try {
-      // 构造请求参数
-      Map<String, dynamic> params = {
-        'college_name': collegeName,
-      };
 
       // 发送POST请求
       Response response = await post(
         '/admin/colleges', // 新增学院接口
-        data: params,
+        data: {
+          'college_name': collegeName,
+        }
       );
 
       // 解析响应
@@ -150,16 +147,17 @@ class _AddCollegeDialogState extends State<AddCollegeDialog> {
     }
 
     try {
-      // 构造请求参数（college_id为String类型，后端会自动解析）
-      Map<String, dynamic> params = {
-        'major_name': majorName,
-        'college_id': _selectedCollegeId, // String类型的学院ID
-      };
-
+      // print(_selectedCollegeId);
+      // print('_selectedCollegeId 类型：${_selectedCollegeId?.runtimeType}');
+      // print(majorName);
+      // print('majorName 类型：${majorName?.runtimeType}');
       // 发送POST请求
       Response response = await post(
         '/admin/majors', // 新增专业接口
-        data: params,
+        data: {
+          'major_name': majorName,
+          'college_id': _selectedCollegeId,
+        }
       );
 
       // 解析响应
@@ -296,7 +294,7 @@ class _AddCollegeDialogState extends State<AddCollegeDialog> {
     );
   }
 
-  // ---------------- 学院修改表单 ----------------
+  // ---------------- 学院新增表单 ----------------
   Widget _buildCollegeEditForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -315,7 +313,7 @@ class _AddCollegeDialogState extends State<AddCollegeDialog> {
     );
   }
 
-  // ---------------- 专业修改表单 ----------------
+  // ---------------- 专业新增表单 ----------------
   Widget _buildMajorEditForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
