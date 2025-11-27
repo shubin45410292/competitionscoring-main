@@ -10,290 +10,450 @@ class AdminFeedbackPage extends StatefulWidget {
 }
 
 class _AdminFeedbackPageState extends State<AdminFeedbackPage> {
-  String selectedYear = '2024–2025';
-  String selectedStatus = '待回复';
+  String _selectedYear = '全部'; // 时间筛选
+  String _selectedStatus = '全部'; // 回复状态筛选
+  String _selectedFeedbackType = '全部'; // 反馈类型筛选
+  List<FeedbackItem> _feedbackItems = [];
+  bool _isProcessing = false;
 
-  final List<Map<String, dynamic>> feedbackList = [
-    {
-      "title": "文件上传失败!",
-      "time": "2025-8-8 12:41:42",
-      "feedbackId": "102300000",
-      "reply": "感谢建议，我们会在下个版本改进",
-      "isReplied": true,
-      "showInput": false,
-      "controller": TextEditingController()
-    },
-    {
-      "title": "xxxxxxxxxxx!",
-      "time": "",
-      "feedbackId": "",
-      "reply": "",
-      "isReplied": false,
-      "showInput": false,
-      "controller": TextEditingController()
-    },
-    {
-      "title": "xxxxxxxxxxx!",
-      "time": "",
-      "feedbackId": "",
-      "reply": "",
-      "isReplied": false,
-      "showInput": false,
-      "controller": TextEditingController()
-    },
+  // 反馈类型选项
+  final List<String> _feedbackTypes = [
+    '全部',
+    '功能建议',
+    'bug反馈',
+    '体验问题',
+    '其他反馈'
   ];
 
+  // 日期格式化工具
+  final DateFormat _dateFormatter = DateFormat('yyyy-MM-dd HH:mm:ss');
+
   @override
-  void dispose() {
-    for (var item in feedbackList) {
-      item["controller"].dispose();
+  void initState() {
+    super.initState();
+    _loadFeedbackItems();
+  }
+
+  void _loadFeedbackItems() {
+    // 反馈记录
+    _feedbackItems = [
+      FeedbackItem(
+        id: '1',
+        content: '文件上传失败',
+        submitTime: '2025-08-08 12:41:42',
+        status: '待回复',
+        reply: '',
+        type: 'bug反馈',
+        studentId: '2023001',
+      ),
+      FeedbackItem(
+        id: '2',
+        content: '希望增加深色模式',
+        submitTime: '2025-08-07 10:30:15',
+        status: '已回复',
+        reply: '感谢建议，我们会在下个版本改进',
+        type: '功能建议',
+        studentId: '2023002',
+      ),
+      FeedbackItem(
+        id: '3',
+        content: '页面加载速度太慢',
+        submitTime: '2025-08-06 15:22:30',
+        status: '待回复',
+        reply: '',
+        type: '体验问题',
+        studentId: '2023003',
+      ),
+      FeedbackItem(
+        id: '4',
+        content: '界面显示异常',
+        submitTime: '2024-08-05 09:15:20',
+        status: '已回复',
+        reply: '问题已修复，请更新至最新版本',
+        type: 'bug反馈',
+        studentId: '2023004',
+      ),
+    ];
+  }
+
+  // 日期解析容错方法
+  DateTime? _parseSafeDate(String dateStr) {
+    try {
+      return _dateFormatter.parse(dateStr);
+    } catch (e) {
+      debugPrint('日期解析失败：$dateStr，错误信息：$e');
+      return DateTime.now();
     }
-    super.dispose();
+  }
+
+  // 根据筛选条件获取过滤后的反馈列表
+  List<FeedbackItem> get _filteredFeedbackItems {
+    return _feedbackItems.where((item) {
+      // 状态筛选
+      if (_selectedStatus != '全部') {
+        bool isReplied = item.reply.isNotEmpty;
+        if (_selectedStatus == '已回复' && !isReplied) return false;
+        if (_selectedStatus == '待回复' && isReplied) return false;
+      }
+      // 时间（按年份）筛选
+      if (_selectedYear != '全部') {
+        final itemYear = DateTime.parse(item.submitTime).year.toString();
+        if (itemYear != _selectedYear) return false;
+      }
+      // 反馈类型筛选
+      if (_selectedFeedbackType != '全部' && item.type != _selectedFeedbackType) {
+        return false;
+      }
+
+      return true;
+    }).toList();
+  }
+
+  // 处理回复反馈
+  void _handleReply(FeedbackItem item) {
+    final TextEditingController replyController = TextEditingController(text: item.reply);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('回复反馈'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 显示反馈详情
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('学生ID: ${item.studentId}'),
+                    const SizedBox(height: 8),
+                    Text('反馈类型: ${item.type}'),
+                    const SizedBox(height: 8),
+                    Text('提交时间: ${item.submitTime}'),
+                    const SizedBox(height: 8),
+                    Text('反馈内容: ${item.content}'),
+                  ],
+                ),
+              ),
+              // 回复输入框
+              TextField(
+                controller: replyController,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  hintText: '请输入回复内容',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  contentPadding: const EdgeInsets.all(12),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: _isProcessing
+                  ? null
+                  : () async {
+                      if (replyController.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('请输入回复内容')),
+                        );
+                        return;
+                      }
+
+                      setState(() => _isProcessing = true);
+
+                      try {
+                        // 模拟网络请求
+                        await Future.delayed(const Duration(seconds: 1));
+
+                        // 更新反馈回复状态
+                        setState(() {
+                          final index = _feedbackItems.indexWhere((i) => i.id == item.id);
+                          if (index != -1) {
+                            _feedbackItems[index] = FeedbackItem(
+                              id: item.id,
+                              content: item.content,
+                              submitTime: item.submitTime,
+                              status: '已回复',
+                              reply: replyController.text.trim(),
+                              type: item.type,
+                              studentId: item.studentId,
+                            );
+                          }
+                        });
+
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('回复成功')),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('回复失败，请重试')),
+                        );
+                      } finally {
+                        setState(() => _isProcessing = false);
+                      }
+                    },
+              child: _isProcessing
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Text('提交回复'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    const Color primaryBlue = Color(0xFF4A90E2);
-    double screenWidth = MediaQuery.of(context).size.width;
-
-    return WillPopScope(
-      onWillPop: () async {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const AdminHomePage()),
-        );
-        return false;
-      },
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          backgroundColor: primaryBlue,
-          elevation: 0,
-          centerTitle: true,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
-            onPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const AdminHomePage()),
-              );
-            },
-          ),
-          title: const Text(
-            '用户反馈管理',
-            style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.w600),
-          ),
-        ),
-        body: Column(
-          children: [
-            // 顶部筛选区域
-            Container(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 10),
-              color: Colors.white,
-              child: Wrap(
-                spacing: 16,
-                runSpacing: 8,
-                children: [
-                  // 年份下拉框
-                  ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: (screenWidth - 54) / 2),
-                    child: Container(
-                      height: 42,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.black26),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          isExpanded: true,
-                          value: selectedYear,
-                          items: ['2023–2024', '2024–2025', '2025–2026']
-                              .map((e) => DropdownMenuItem(
-                                    value: e,
-                                    child: Center(
-                                      child: Text(e, style: const TextStyle(fontSize: 12)),
-                                    ),
-                                  ))
-                              .toList(),
-                          selectedItemBuilder: (context) => ['2023–2024', '2024–2025', '2025–2026']
-                              .map((e) => Center(
-                                    child: Text('年份：$e', style: const TextStyle(fontSize: 12)),
-                                  ))
-                              .toList(),
-                          onChanged: (v) => setState(() => selectedYear = v!),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // 状态下拉框
-                  ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: (screenWidth - 54) / 2),
-                    child: Container(
-                      height: 42,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.black26),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          isExpanded: true,
-                          value: selectedStatus,
-                          items: ['待回复', '已回复']
-                              .map((e) => DropdownMenuItem(
-                                    value: e,
-                                    child: Center(
-                                      child: Text(e, style: const TextStyle(fontSize: 12)),
-                                    ),
-                                  ))
-                              .toList(),
-                          selectedItemBuilder: (context) => ['待回复', '已回复']
-                              .map((e) => Center(
-                                    child: Text('状态：$e', style: const TextStyle(fontSize: 12)),
-                                  ))
-                              .toList(),
-                          onChanged: (v) => setState(() => selectedStatus = v!),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1, color: Colors.black12),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(18, 10, 18, 10),
-                itemCount: feedbackList.length,
-                itemBuilder: (context, index) {
-                  final item = feedbackList[index];
-                  return _buildFeedbackCard(item);
-                },
-              ),
-            ),
-            // 底部状态栏
-            Container(
-              height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              color: Colors.white,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    DateFormat('yyyy年MM月dd日 HH:mm').format(DateTime.now()),
-                    style: const TextStyle(fontSize: 10, color: Colors.grey),
-                  ),
-                  const Text(
-                    '系统版本v2.3.1｜服务状态：正常',
-                    style: TextStyle(fontSize: 10, color: Colors.grey),
-                  ),
-                ],
-              ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('反馈管理'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const AdminHomePage()),
             )
-          ],
+          },
         ),
       ),
-    );
-  }
-
-  Widget _buildFeedbackCard(Map<String, dynamic> item) {
-    bool isReplied = item["isReplied"] ?? false;
-    bool showInput = item["showInput"] ?? false;
-    TextEditingController controller = item["controller"];
-    const Color primaryBlue = Color(0xFF4A90E2);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 18),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.black12, width: 1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: Column(
         children: [
-          Text(item["title"] ?? "", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          if (item["time"] != "") ...[
-            const SizedBox(height: 6),
-            Text("申请时间：${item["time"]}", style: const TextStyle(fontSize: 13, color: Colors.black87)),
-            Text("申请Id：${item["feedbackId"]}", style: const TextStyle(fontSize: 13, color: Colors.black87)),
-          ],
-          if (isReplied) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(right: 70),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text("管理员回复： ${item["reply"]}", style: const TextStyle(fontSize: 13, color: Colors.black87)),
-            ),
-          ],
-          if (showInput) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(right: 70),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: TextField(
-                controller: controller,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: '回复:文本输入......',
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+          // 筛选栏
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                // 第一行：年份 + 状态筛选
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedYear,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                        items: ['全部', '2025', '2024', '2023']
+                            .map((year) => DropdownMenuItem(
+                                  value: year,
+                                  child: Text('时间: $year年'),
+                                ))
+                            .toList(),
+                        onChanged: (value) => setState(() => _selectedYear = value!),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedStatus,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                        items: ['全部', '待回复', '已回复']
+                            .map((status) => DropdownMenuItem(
+                                  value: status,
+                                  child: Text('状态: $status'),
+                                ))
+                            .toList(),
+                        onChanged: (value) => setState(() => _selectedStatus = value!),
+                      ),
+                    ),
+                  ],
                 ),
-                style: const TextStyle(fontSize: 13),
-                maxLines: null,
-              ),
-            ),
-          ],
-          const SizedBox(height: 14),
-          Align(
-            alignment: Alignment.centerRight,
-            child: GestureDetector(
-              onTap: () {
-                if (!isReplied) {
-                  if (showInput) {
-                    if (controller.text.trim().isNotEmpty) {
-                      // 有内容 → 提交
-                      setState(() {
-                        item["reply"] = controller.text.trim();
-                        item["isReplied"] = true;
-                        item["showInput"] = false;
-                      });
-                    } else {
-                      // 没有内容 → 取消输入框
-                      setState(() {
-                        item["showInput"] = false;
-                      });
-                    }
-                  } else {
-                    // 点击按钮显示输入框
-                    setState(() {
-                      item["showInput"] = true;
-                      controller.text = '';
-                    });
-                  }
-                }
-              },
-              child: Container(
-                width: 90,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: isReplied ? primaryBlue : Colors.amber,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Center(
-                  child: Text(
-                    isReplied ? "已回复" : "回复",
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                const SizedBox(height: 12),
+                // 第二行：反馈类型筛选
+                DropdownButtonFormField<String>(
+                  value: _selectedFeedbackType,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                   ),
+                  items: _feedbackTypes
+                      .map((type) => DropdownMenuItem(
+                            value: type,
+                            child: Text('反馈类型: $type'),
+                          ))
+                      .toList(),
+                  onChanged: (value) => setState(() => _selectedFeedbackType = value!),
                 ),
+              ],
+            ),
+          ),
+          
+          // 反馈列表
+          Expanded(
+            child: _filteredFeedbackItems.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.inbox,
+                          size: 48,
+                          color: Colors.grey.shade300,
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          '没有找到符合条件的反馈记录',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          '请尝试调整筛选条件',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: _filteredFeedbackItems.length,
+                    itemBuilder: (context, index) {
+                      final item = _filteredFeedbackItems[index];
+                      final bool hasReply = item.reply.isNotEmpty;
+                      
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // 标题和状态标签
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      item.content,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  // 状态标签
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: hasReply ? Colors.green.shade100 : Colors.orange.shade100,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      hasReply ? '已回复' : '待回复',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: hasReply ? Colors.green : Colors.orange,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              // 显示反馈类型
+                              Text(
+                                '反馈类型: ${item.type}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                              // 学生ID
+                              Text(
+                                '提交学生: ${item.studentId}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                              // 提交时间
+                              Text(
+                                '提交时间: ${item.submitTime}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                              // 回复内容
+                              if (hasReply)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      '管理员回复: ${item.reply}',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              // 回复按钮
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: ElevatedButton(
+                                    onPressed: () => _handleReply(item),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue,
+                                    ),
+                                    child: Text(hasReply ? '编辑回复' : '回复'),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+
+          // 系统版本信息
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Text(
+              '系统版本v2.3.1 | 服务状态: 正常',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade500,
               ),
             ),
           ),
@@ -301,4 +461,25 @@ class _AdminFeedbackPageState extends State<AdminFeedbackPage> {
       ),
     );
   }
+}
+
+// FeedbackItem类
+class FeedbackItem {
+  final String id;
+  final String content;
+  final String submitTime;
+  final String status;
+  final String reply;
+  final String type;
+  final String studentId;
+
+  FeedbackItem({
+    required this.id,
+    required this.content,
+    required this.submitTime,
+    required this.status,
+    required this.reply,
+    required this.type,
+    required this.studentId,
+  });
 }
