@@ -1,5 +1,7 @@
 //奖项认定信息管理页面(管理员端)
 
+import 'package:competition/util/createAwardDialog.dart';
+import 'package:competition/util/editAwardDialog.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:dio/dio.dart';
@@ -23,7 +25,8 @@ class _AdminAwardPageState extends State<AdminAwardPage> {
   List<Map<String, dynamic>> awardList = [];
   bool isLoading = true; // 加载状态
   String errorMsg = ""; // 错误信息
-  final TextEditingController _searchController = TextEditingController(); // 搜索控制器
+  final TextEditingController _searchController =
+      TextEditingController(); // 搜索控制器
 
   // 接口路径（拼接baseUrl后完整路径：http://204.152.192.27:8080/api/admin/reward/query）
   static const String awardQueryPath = "/admin/reward/query";
@@ -80,7 +83,8 @@ class _AdminAwardPageState extends State<AdminAwardPage> {
               "certUnit": item["recognition_basis"] ?? "无",
               "level": item["recognized_level"] ?? "未知级别",
               "expanded": item["is_active"] ?? false,
-              "recognize_reward_id": item["recognize_reward_id"] ?? "", // 保存ID用于后续编辑/删除
+              "recognize_reward_id":
+                  item["recognize_reward_id"] ?? "", // 保存ID用于后续编辑/删除
             };
           }).toList();
 
@@ -127,9 +131,7 @@ class _AdminAwardPageState extends State<AdminAwardPage> {
     return OutlinedButton.styleFrom(
       side: BorderSide(color: color, width: 1),
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
     );
   }
 
@@ -139,9 +141,7 @@ class _AdminAwardPageState extends State<AdminAwardPage> {
       backgroundColor: const Color(0xFF2C70F5),
       padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
     );
   }
 
@@ -150,8 +150,9 @@ class _AdminAwardPageState extends State<AdminAwardPage> {
     const Color primaryBlue = Color(0xFF4A90E2);
     const Color bgColor = Color(0xFFF7F8FA);
 
-    String formattedDate =
-    DateFormat('yyyy年MM月dd日 HH:mm').format(DateTime.now());
+    String formattedDate = DateFormat(
+      'yyyy年MM月dd日 HH:mm',
+    ).format(DateTime.now());
 
     return Scaffold(
       appBar: AppBar(
@@ -177,7 +178,7 @@ class _AdminAwardPageState extends State<AdminAwardPage> {
             Navigator.pushNamedAndRemoveUntil(
               context,
               '/adminHome',
-                  (route) => false,
+              (route) => false,
             );
           },
         ),
@@ -226,152 +227,211 @@ class _AdminAwardPageState extends State<AdminAwardPage> {
           // 加载状态、错误状态、数据展示
           Expanded(
             child: isLoading
-                ? const Center(child: CircularProgressIndicator(color: primaryBlue))
+                ? const Center(
+                    child: CircularProgressIndicator(color: primaryBlue),
+                  )
                 : errorMsg.isNotEmpty
                 ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(errorMsg, style: const TextStyle(color: Colors.red)),
-                  const SizedBox(height: 16),
-                  OutlinedButton(
-                    onPressed: () => fetchAwardData(),
-                    style: outlineBtn(primaryBlue),
-                    child: const Text("重新加载", style: TextStyle(color: primaryBlue)),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          errorMsg,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                        const SizedBox(height: 16),
+                        OutlinedButton(
+                          onPressed: () => fetchAwardData(),
+                          style: outlineBtn(primaryBlue),
+                          child: const Text(
+                            "重新加载",
+                            style: TextStyle(color: primaryBlue),
+                          ),
+                        ),
+                      ],
+                    ),
                   )
-                ],
-              ),
-            )
                 : awardList.isEmpty
                 ? const Center(child: Text("暂无奖项数据"))
                 : ListView.builder(
-              itemCount: awardList.length,
-              itemBuilder: (context, index) {
-                var item = awardList[index];
-                bool expanded = item["expanded"] ?? false;
+                    itemCount: awardList.length,
+                    itemBuilder: (context, index) {
+                      var item = awardList[index];
+                      bool expanded = item["expanded"] ?? false;
 
-                return Column(
-                  children: [
-                    // 标题行
-                    ListTile(
-                      title: Text(
-                        item["title"],
-                        style: const TextStyle(
-                            fontSize: 17, fontWeight: FontWeight.bold),
-                      ),
-                      trailing: const Icon(Icons.arrow_drop_down),
-                      onTap: () {
-                        setState(() {
-                          item["expanded"] = !expanded;
-                        });
-                      },
-                    ),
-
-                    // 展开区块
-                    if (expanded && item.containsKey('college'))
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 10),
-                        color: Colors.grey.shade50,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("学院：${item["college"]}"),
-                            const SizedBox(height: 4),
-                            Text("主办单位：${item["organizer"]}"),
-                            const SizedBox(height: 4),
-                            Text("竞赛时间：${item["time"]}"),
-                            const SizedBox(height: 4),
-                            Text("涉及专业：${item["major"]}"),
-                            const SizedBox(height: 4),
-                            Text("申请专业：${item["applyMajor"]}"),
-                            const SizedBox(height: 4),
-                            Text("认定依据：${item["certUnit"]}"),
-                            const SizedBox(height: 4),
-                            Text("认定级别：${item["level"]}"),
-                            const SizedBox(height: 10),
-
-                            // 按钮（编辑 + 删除）
-                            Row(
-                              children: [
-                                OutlinedButton(
-                                  onPressed: () {
-                                    // 编辑逻辑：传入奖项ID
-                                    print("编辑奖项ID：${item["recognize_reward_id"]}");
-                                    // 这里可以跳转到编辑页面或打开编辑弹窗
-                                  },
-                                  style: outlineBtn(const Color(0xFF2C70F5)),
-                                  child: const Text(
-                                    "编辑",
-                                    style: TextStyle(
-                                      color: Color(0xFF2C70F5),
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                OutlinedButton(
-                                  onPressed: () async {
-                                    // 删除确认
-                                    bool confirm = await showDialog(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        title: const Text("确认删除"),
-                                        content: const Text("确定要删除该奖项吗？此操作不可撤销。"),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.pop(context, false),
-                                            child: const Text("取消"),
-                                          ),
-                                          TextButton(
-                                            onPressed: () => Navigator.pop(context, true),
-                                            child: const Text("删除", style: TextStyle(color: Colors.red)),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-
-                                    if (confirm) {
-                                      // 执行删除请求（假设删除接口路径）
-                                      try {
-                                        String deletePath = "/admin/reward/${item["recognize_reward_id"]}";
-                                        await delete(deletePath);
-                                        // 删除成功后刷新数据
-                                        fetchAwardData();
-                                        if (mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(content: Text("删除成功")),
-                                          );
-                                        }
-                                      } catch (e) {
-                                        if (mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(content: Text("删除失败"), backgroundColor: Colors.red),
-                                          );
-                                        }
-                                      }
-                                    }
-                                  },
-                                  style: outlineBtn(Colors.red),
-                                  child: const Text(
-                                    "删除",
-                                    style: TextStyle(
-                                      color: Colors.red,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                      return Column(
+                        children: [
+                          // 标题行
+                          ListTile(
+                            title: Text(
+                              item["title"],
+                              style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ],
-                        ),
-                      ),
+                            trailing: const Icon(Icons.arrow_drop_down),
+                            onTap: () {
+                              setState(() {
+                                item["expanded"] = !expanded;
+                              });
+                            },
+                          ),
 
-                    const Divider(height: 1, color: Colors.grey),
-                  ],
-                );
-              },
-            ),
+                          // 展开区块
+                          if (expanded && item.containsKey('college'))
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 10,
+                              ),
+                              color: Colors.grey.shade50,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text("学院：${item["college"]}"),
+                                  const SizedBox(height: 4),
+                                  Text("主办单位：${item["organizer"]}"),
+                                  const SizedBox(height: 4),
+                                  Text("竞赛时间：${item["time"]}"),
+                                  const SizedBox(height: 4),
+                                  Text("涉及专业：${item["major"]}"),
+                                  const SizedBox(height: 4),
+                                  Text("申请专业：${item["applyMajor"]}"),
+                                  const SizedBox(height: 4),
+                                  Text("认定依据：${item["certUnit"]}"),
+                                  const SizedBox(height: 4),
+                                  Text("认定级别：${item["level"]}"),
+                                  const SizedBox(height: 10),
+
+                                  // 按钮（编辑 + 删除）
+                                  Row(
+                                    children: [
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          // 编辑逻辑：传入奖项ID
+                                          print(
+                                            "编辑奖项ID：${item["recognize_reward_id"]}",
+                                          );
+                                          showModalBottomSheet(
+                                            context: context,
+                                            isScrollControlled: true,
+                                            backgroundColor: Colors.white,
+                                            shape: const RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.vertical(
+                                                    top: Radius.circular(18),
+                                                  ),
+                                            ),
+                                            builder: (_) =>
+                                                const EditAwardDialog(), // 修改用户信息组件
+                                          );
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.blue[600],
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 20,
+                                            vertical: 10,
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          "编辑",
+                                          style: TextStyle(fontSize: 14),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      ElevatedButton(
+                                        onPressed: () async {
+                                          // 删除确认
+                                          bool confirm = await showDialog(
+                                            context: context,
+                                            builder: (context) => AlertDialog(
+                                              title: const Text("确认删除"),
+                                              content: const Text(
+                                                "确定要删除该奖项吗？此操作不可撤销。",
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(
+                                                        context,
+                                                        false,
+                                                      ),
+                                                  child: const Text("取消"),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(
+                                                        context,
+                                                        true,
+                                                      ),
+                                                  child: const Text(
+                                                    "删除",
+                                                    style: TextStyle(
+                                                      color: Colors.red,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+
+                                          if (confirm) {
+                                            // 执行删除请求（假设删除接口路径）
+                                            try {
+                                              String deletePath =
+                                                  "/admin/reward/${item["recognize_reward_id"]}";
+                                              await delete(deletePath);
+                                              // 删除成功后刷新数据
+                                              fetchAwardData();
+                                              if (mounted) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text("删除成功"),
+                                                  ),
+                                                );
+                                              }
+                                            } catch (e) {
+                                              if (mounted) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text("删除失败"),
+                                                    backgroundColor: Colors.red,
+                                                  ),
+                                                );
+                                              }
+                                            }
+                                          }
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.blue[600],
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 20,
+                                            vertical: 10,
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          '删除',
+                                          style: TextStyle(fontSize: 14),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                          const Divider(height: 1, color: Colors.grey),
+                        ],
+                      );
+                    },
+                  ),
           ),
 
           // 新建按钮
@@ -379,6 +439,17 @@ class _AdminAwardPageState extends State<AdminAwardPage> {
             padding: const EdgeInsets.only(bottom: 10),
             child: ElevatedButton(
               onPressed: () {
+                showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.white,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(18),
+            ),
+          ),
+          builder: (_) => const CreateAwardDialog(),
+        );
                 // 新建奖项逻辑：跳转到新建页面或打开新建弹窗
                 print("新建奖项");
               },
@@ -404,17 +475,16 @@ class _AdminAwardPageState extends State<AdminAwardPage> {
                   OutlinedButton(
                     onPressed: currentPage > 1
                         ? () {
-                      setState(() => currentPage--);
-                      fetchAwardData(searchKeyword: _searchController.text.trim());
-                    }
+                            setState(() => currentPage--);
+                            fetchAwardData(
+                              searchKeyword: _searchController.text.trim(),
+                            );
+                          }
                         : null,
                     style: outlineBtn(const Color(0xFFCCCCCC)),
                     child: const Text(
                       "上一页",
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF666666),
-                      ),
+                      style: TextStyle(fontSize: 13, color: Color(0xFF666666)),
                     ),
                     //enabled: currentPage > 1,
                   ),
@@ -424,17 +494,16 @@ class _AdminAwardPageState extends State<AdminAwardPage> {
                   OutlinedButton(
                     onPressed: currentPage < totalPage
                         ? () {
-                      setState(() => currentPage++);
-                      fetchAwardData(searchKeyword: _searchController.text.trim());
-                    }
+                            setState(() => currentPage++);
+                            fetchAwardData(
+                              searchKeyword: _searchController.text.trim(),
+                            );
+                          }
                         : null,
                     style: outlineBtn(const Color(0xFFCCCCCC)),
                     child: const Text(
                       "下一页",
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF666666),
-                      ),
+                      style: TextStyle(fontSize: 13, color: Color(0xFF666666)),
                     ),
                     //enabled: currentPage < totalPage,
                   ),
@@ -449,7 +518,7 @@ class _AdminAwardPageState extends State<AdminAwardPage> {
               "$formattedDate     系统版本v2.3.1 ｜ 服务状态：正常",
               style: const TextStyle(fontSize: 10, color: Colors.grey),
             ),
-          )
+          ),
         ],
       ),
     );
