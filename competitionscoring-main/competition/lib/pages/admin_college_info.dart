@@ -47,7 +47,7 @@ class _CollegeInfoPageState extends State<CollegeInfoPage> {
       Response collegeResponse = await get(
         "/admin/colleges",
         queryParameters: {
-          "page_size": 10,
+          "page_size": 20,
           "page_num": currentPage,
         },
       );
