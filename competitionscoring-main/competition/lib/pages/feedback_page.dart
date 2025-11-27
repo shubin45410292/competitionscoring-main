@@ -10,10 +10,23 @@ class FeedbackPage extends StatefulWidget {
 
 class _FeedbackPageState extends State<FeedbackPage> {
   final TextEditingController _feedbackController = TextEditingController();
-  String _selectedAcademicYear = '2024-2025';
-  String _selectedStatus = '全部';
+  String _selectedYear = '全部'; // 时间筛选
+  String _selectedStatus = '全部'; // 回复状态筛选
+  String _selectedFeedbackType = '全部'; // 反馈类型筛选
   List<FeedbackItem> _feedbackItems = [];
   bool _isSubmitting = false;
+
+  // 反馈类型选项
+  final List<String> _feedbackTypes = [
+    '全部',
+    '功能建议',
+    'bug反馈',
+    '体验问题',
+    '其他反馈'
+  ];
+
+  // 日期格式化工具（确保解析/生成标准格式）
+  final DateFormat _dateFormatter = DateFormat('yyyy-MM-dd HH:mm:ss');
 
   @override
   void initState() {
@@ -23,38 +36,53 @@ class _FeedbackPageState extends State<FeedbackPage> {
   }
 
   void _loadFeedbackItems() {
-    // 这里应该是从API获取数据，现在使用模拟数据
+    // 反馈记录
     _feedbackItems = [
       FeedbackItem(
         id: '1',
-        content: '文件上传失败！',
-        submitTime: '2025-8-8 12:41:42',
-        status: '已回复',  // 更新为已回复状态
-        reply: '感谢建议，我们会在下个版本改进',
+        content: '文件上传失败',
+        submitTime: '2025-08-08 12:41:42',
+        status: '待回复',
+        reply: '',
+        type: 'bug反馈',
       ),
       FeedbackItem(
         id: '2',
-        content: 'xxxxxxxxxx!',
-        submitTime: '2025-8-7 10:30:15',
-        status: '待回复',
-        reply: '',
+        content: '希望增加深色模式',
+        submitTime: '2025-08-07 10:30:15',
+        status: '已回复',
+        reply: '感谢建议，我们会在下个版本改进',
+        type: '功能建议',
       ),
       FeedbackItem(
         id: '3',
-        content: 'xxxxxxxxx!',
-        submitTime: '2025-8-6 15:22:30',
+        content: '页面加载速度太慢',
+        submitTime: '2025-08-06 15:22:30',
         status: '待回复',
         reply: '',
+        type: '体验问题', 
       ),
       // 添加一个已回复的反馈项示例
       FeedbackItem(
         id: '4',
         content: '界面显示异常',
-        submitTime: '2025-8-5 09:15:20',
+        submitTime: '2024-08-05 09:15:20',
         status: '已回复',
-        reply: '问题已修复，请更新到最新版本',
+        reply: '问题已修复，请更新至最新版本',
+        type: 'bug反馈',
       ),
     ];
+  }
+
+  // 日期解析容错方法，避免格式异常
+  DateTime? _parseSafeDate(String dateStr) {
+    try {
+      return _dateFormatter.parse(dateStr);
+    } catch (e) {
+      // 若解析失败，返回当前时间（避免崩溃，实际项目可日志上报错误）
+      debugPrint('日期解析失败：$dateStr，错误信息：$e');
+      return DateTime.now();
+    }
   }
 
   // 根据筛选条件获取过滤后的反馈列表
@@ -66,7 +94,16 @@ class _FeedbackPageState extends State<FeedbackPage> {
         if (_selectedStatus == '已回复' && !isReplied) return false;
         if (_selectedStatus == '待回复' && isReplied) return false;
       }
-      // 这里可以添加学年筛选逻辑，如果需要的话
+      // 时间（按年份）筛选
+      if (_selectedYear != '全部') {
+        final itemYear = DateTime.parse(item.submitTime).year.toString();
+        if (itemYear != _selectedYear) return false;
+      }
+      // 反馈类型筛选
+      if (_selectedFeedbackType != '全部' && item.type != _selectedFeedbackType) {
+        return false;
+      }
+
       return true;
     }).toList();
   }
@@ -91,14 +128,16 @@ class _FeedbackPageState extends State<FeedbackPage> {
       final newFeedback = FeedbackItem(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         content: _feedbackController.text.trim(),
-        submitTime: DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+        submitTime: _dateFormatter.format(DateTime.now()),
         status: '待回复',
         reply: '',
+        type: _selectedFeedbackType != '全部' ? _selectedFeedbackType : '其他反馈', // 使用选择的类型
       );
 
       setState(() {
         _feedbackItems.insert(0, newFeedback);
         _feedbackController.clear();
+        _selectedFeedbackType = '全部';
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -119,6 +158,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
   void _showFeedbackDialog() {
     final TextEditingController dialogController = TextEditingController();
     bool isSubmitting = false;
+    String dialogSelectedType = '功能建议';
 
     showDialog(
       context: context,
@@ -131,6 +171,30 @@ class _FeedbackPageState extends State<FeedbackPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 反馈类型选择
+                  DropdownButtonFormField<String>(
+                    value: dialogSelectedType,
+                    decoration: InputDecoration(
+                      labelText: '反馈类型',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                    ),
+                    items: _feedbackTypes.where((type) => type != '全部') // 排除"全部"选项
+                        .map((type) => DropdownMenuItem(
+                              value: type,
+                              child: Text(type),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      setStateDialog(() {
+                        dialogSelectedType = value!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  // 反馈内容输入
                   TextField(
                     controller: dialogController,
                     maxLines: 4,
@@ -148,6 +212,9 @@ class _FeedbackPageState extends State<FeedbackPage> {
                 TextButton(
                   onPressed: () {
                     dialogController.clear();
+                    setStateDialog(() {
+                      dialogSelectedType = '功能建议';
+                    });
                   },
                   child: const Text('重置'),
                 ),
@@ -177,6 +244,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
                               submitTime: DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
                               status: '待回复',
                               reply: '',
+                              type: dialogSelectedType, 
                             );
 
                             setState(() {
@@ -235,52 +303,80 @@ class _FeedbackPageState extends State<FeedbackPage> {
           // 筛选栏
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedAcademicYear,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                // 第一行：年份 + 状态筛选
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedYear,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                        // 年份选项
+                        items: ['全部', '2025', '2024', '2023']
+                            .map((year) => DropdownMenuItem(
+                                  value: year,
+                                  child: Text('时间: $year年'),
+                                ))
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedYear = value!;
+                          });
+                        },
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                     ),
-                    items: ['2024-2025', '2023-2024', '2022-2023']
-                        .map((year) => DropdownMenuItem(
-                              value: year,
-                              child: Text('学年: $year'),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedAcademicYear = value!;
-                      });
-                    },
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedStatus,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                        items: ['全部', '待回复', '已回复']
+                            .map((status) => DropdownMenuItem(
+                                  value: status,
+                                  child: Text('状态: $status'),
+                                ))
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedStatus = value!;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedStatus,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                const SizedBox(height: 12),
+                // 第二行：反馈类型筛选（新增，补全筛选功能）
+                DropdownButtonFormField<String>(
+                  value: _selectedFeedbackType,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    items: ['全部', '待回复', '已回复']
-                        .map((status) => DropdownMenuItem(
-                              value: status,
-                              child: Text('状态: $status'),
-                            ))
-                        .toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedStatus = value!;
-                      });
-                    },
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                   ),
+                  items: _feedbackTypes
+                      .map((type) => DropdownMenuItem(
+                            value: type,
+                            child: Text('反馈类型: $type'),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedFeedbackType = value!;
+                    });
+                  },
                 ),
               ],
             ),
@@ -288,7 +384,36 @@ class _FeedbackPageState extends State<FeedbackPage> {
           
           // 反馈列表
           Expanded(
-            child: ListView.builder(
+            child: _filteredFeedbackItems.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.inbox,
+                          size: 48,
+                          color: Colors.grey.shade300,
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          '没有找到符合条件的反馈记录',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          '请尝试调整筛选条件',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
               itemCount: _filteredFeedbackItems.length,
               itemBuilder: (context, index) {
                 final item = _filteredFeedbackItems[index];
@@ -337,8 +462,17 @@ class _FeedbackPageState extends State<FeedbackPage> {
                           ],
                         ),
                         const SizedBox(height: 8),
+                        // 反馈类型
                         Text(
-                          '申诉时间: ${item.submitTime}',
+                          '反馈类型: ${item.type}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        // 提交时间
+                        Text(
+                          '提交时间: ${item.submitTime}',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey.shade600,
@@ -409,6 +543,7 @@ class FeedbackItem {
   final String submitTime;
   final String status;
   final String reply;
+  final String type;
 
   FeedbackItem({
     required this.id,
@@ -416,5 +551,6 @@ class FeedbackItem {
     required this.submitTime,
     required this.status,
     required this.reply,
+    required this.type,
   });
 }
