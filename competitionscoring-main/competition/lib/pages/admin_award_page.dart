@@ -305,35 +305,30 @@ class _AdminAwardPageState extends State<AdminAwardPage> {
                                   const SizedBox(height: 10),
 
                                   // 按钮（编辑 + 删除）
+                                  // 按钮（编辑 + 删除）
                                   Row(
                                     children: [
+                                      // 编辑按钮（保留原有）
                                       ElevatedButton(
                                         onPressed: () {
                                           // 编辑逻辑：传入奖项ID
-                                          print(
-                                            "编辑奖项ID：${item["recognize_reward_id"]}",
-                                          );
+                                          print("编辑奖项ID：${item["recognize_reward_id"]}");
                                           showModalBottomSheet(
                                             context: context,
                                             isScrollControlled: true,
                                             backgroundColor: Colors.white,
                                             shape: const RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.vertical(
-                                                    top: Radius.circular(18),
-                                                  ),
+                                              borderRadius: BorderRadius.vertical(
+                                                top: Radius.circular(18),
+                                              ),
                                             ),
-                                            builder: (_) =>
-                                                const EditAwardDialog(), // 修改用户信息组件
+                                            builder: (_) => const EditAwardDialog(), // 修改用户信息组件
                                           );
                                         },
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.blue[600],
                                           foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 20,
-                                            vertical: 10,
-                                          ),
+                                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                                         ),
                                         child: const Text(
                                           "编辑",
@@ -341,36 +336,26 @@ class _AdminAwardPageState extends State<AdminAwardPage> {
                                         ),
                                       ),
                                       const SizedBox(width: 12),
+
+                                      // 删除按钮（修正后，仅保留一个删除按钮）
                                       ElevatedButton(
                                         onPressed: () async {
-                                          // 删除确认
+                                          // 1. 删除确认弹窗
                                           bool confirm = await showDialog(
                                             context: context,
                                             builder: (context) => AlertDialog(
                                               title: const Text("确认删除"),
-                                              content: const Text(
-                                                "确定要删除该奖项吗？此操作不可撤销。",
-                                              ),
+                                              content: const Text("确定要删除该奖项吗？此操作不可撤销。"),
                                               actions: [
                                                 TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(
-                                                        context,
-                                                        false,
-                                                      ),
+                                                  onPressed: () => Navigator.pop(context, false),
                                                   child: const Text("取消"),
                                                 ),
                                                 TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(
-                                                        context,
-                                                        true,
-                                                      ),
+                                                  onPressed: () => Navigator.pop(context, true),
                                                   child: const Text(
                                                     "删除",
-                                                    style: TextStyle(
-                                                      color: Colors.red,
-                                                    ),
+                                                    style: TextStyle(color: Colors.red),
                                                   ),
                                                 ),
                                               ],
@@ -378,29 +363,47 @@ class _AdminAwardPageState extends State<AdminAwardPage> {
                                           );
 
                                           if (confirm) {
-                                            // 执行删除请求（假设删除接口路径）
+                                            // 2. 执行删除请求
                                             try {
-                                              String deletePath =
-                                                  "/admin/reward/${item["recognize_reward_id"]}";
-                                              await delete(deletePath);
-                                              // 删除成功后刷新数据
-                                              fetchAwardData();
-                                              if (mounted) {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text("删除成功"),
-                                                  ),
+                                              // 获取奖项ID并校验
+                                              String rewardId = item["recognize_reward_id"] ?? "";
+                                              if (rewardId.isEmpty) {
+                                                throw Exception("奖项ID为空，无法删除");
+                                              }
+
+                                              // 3. 调用封装的delete方法，通过form-data传递参数
+
+                                              // 调用封装的delete方法，传入接口路径和form-data参数
+                                              final responseData = await delete(
+                                                "/admin/reward/delete", // 接口路径（baseUrl已自动拼接）
+                                                params: {
+                                                  "recognize_reward_id": rewardId, // 必传参数：奖项ID
+                                                },
+                                              );
+
+                                              // 4. 解析响应（后端返回格式：{"base": {"code": 10000, "msg": "success"}}）
+                                              if (responseData is Map && responseData["base"]?["code"] == 10000) {
+                                                // 删除成功：提示并刷新列表
+                                                if (mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    const SnackBar(content: Text("删除成功")),
+                                                  );
+                                                }
+                                                fetchAwardData(); // 重新加载数据
+                                              } else {
+                                                // 后端返回业务错误
+                                                throw Exception(
+                                                    responseData is Map
+                                                        ? responseData["base"]??["msg"] ?? "删除失败"
+                                                        : "删除失败"
                                                 );
                                               }
                                             } catch (e) {
+                                              // 错误处理（网络异常、参数错误等）
                                               if (mounted) {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
+                                                ScaffoldMessenger.of(context).showSnackBar(
                                                   SnackBar(
-                                                    content: Text("删除失败"),
+                                                    content: Text("删除失败：${e.toString().replaceAll('Exception: ', '')}"),
                                                     backgroundColor: Colors.red,
                                                   ),
                                                 );
@@ -409,12 +412,9 @@ class _AdminAwardPageState extends State<AdminAwardPage> {
                                           }
                                         },
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.blue[600],
+                                          backgroundColor: Colors.red, // 删除按钮用红色更直观
                                           foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 20,
-                                            vertical: 10,
-                                          ),
+                                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                                         ),
                                         child: const Text(
                                           '删除',
@@ -422,7 +422,7 @@ class _AdminAwardPageState extends State<AdminAwardPage> {
                                         ),
                                       ),
                                     ],
-                                  ),
+                                  )
                                 ],
                               ),
                             ),
