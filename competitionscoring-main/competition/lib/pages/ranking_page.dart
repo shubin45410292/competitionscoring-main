@@ -1,7 +1,9 @@
-//积分排名页面(教师端)
-
+//辅导员端：  查看学生积分排行页面
 import 'package:flutter/material.dart';
-import 'student_score_detail_page.dart'; 
+import 'package:dio/dio.dart';
+import 'student_score_detail_page.dart';
+import 'package:competition/util/token_util.dart';
+import 'package:competition/util/http.dart';
 
 class RankingPage extends StatefulWidget {
   const RankingPage({super.key});
@@ -15,24 +17,95 @@ class _RankingPageState extends State<RankingPage> {
   final int itemsPerPage = 5;
   final TextEditingController _searchController = TextEditingController();
 
-  final List<Map<String, dynamic>> allData = List.generate(15, (index) {
-    return {
-      'rank': index + 1,
-      'year': '2024-2025',
-      'name': ['小明', '小红', '小刚', '小李', '小赵', '小王'][index % 6],
-      'college': ['计算机', '设计', '管理'][index % 3],
-      'score': (70 - index * 1.5).toStringAsFixed(1),
-    };
-  });
-
-  String selectedYear = '2024-2025';
+  // 数据相关
+  List<Map<String, dynamic>> allData = [];
+  bool isLoading = true;
+  String? errorMsg;
+  int totalCount = 0; // 总数据量
+  // 筛选条件
+  String selectedYear = '全部';
   String selectedCollege = '全部';
-  final List<String> yearOptions = ['2024-2025', '2023-2024', '2022-2023'];
-  final List<String> collegeOptions = ['全部', '计算机', '设计', '管理'];
+  final List<String> yearOptions = ['全部','2022','2023','2024','2025'];
+  final List<String> collegeOptions = ['全部', '计算机与大数据学院', '电子与信息工程学院', '机械工程学院','土木建筑工程学院',
+  '经济管理学院','外国语学院','理学院','人文社会科学学院','医学院','艺术学院','法学院','环境科学与工程学院'];
+
+  @override
+  void initState() {
+    super.initState();
+    // 初始化时加载数据（直接使用封装的 get 方法）
+    _fetchRankData();
+  }
+
+  // 从后端获取排名数据（使用封装的 HTTP get 方法）
+  Future<void> _fetchRankData() async {
+    setState(() {
+      isLoading = true;
+      errorMsg = null;
+    });
+
+    try {
+      // 构建查询参数（空值不传递）
+      Map<String, dynamic> queryParams = {};
+
+      // 搜索框内容（学生姓名）
+      if (_searchController.text.trim().isNotEmpty) {
+        queryParams['stu_name'] = _searchController.text.trim();
+      }
+
+      // 年级
+      if (selectedYear != '全部') {
+        queryParams['grade'] = selectedYear;
+      }
+
+      // 学院（"全部"则不传递）
+      if (selectedCollege != '全部') {
+        queryParams['college'] = selectedCollege;
+      }
+
+      // 直接使用封装的 get 方法（无需重复定义 HTTP 逻辑）
+      Response response = await get(
+        '/score/query/rank',
+        queryParameters: queryParams,
+      );
+
+      // 解析响应
+      if (response.data['base']['code'] == 10000) {
+        List<dynamic> items = response.data['data']['item'] ?? [];
+        setState(() {
+          // 处理排名数据（添加rank字段）
+          allData = items.asMap().entries.map((entry) {
+            int index = entry.key;
+            Map<String, dynamic> item = entry.value;
+            return {
+              'rank': index + 1, // 排名从1开始
+              'stu_id': item['stu_id'] ?? '',
+              'stu_name': item['stu_name'] ?? '未知',
+              'college': item['college'] ?? '未知学院',
+              'grade': item['grade'] ?? '未知年级',
+              'score': item['Score']?.toString() ?? '0',
+            };
+          }).toList();
+          totalCount = response.data['data']['total'] ?? 0;
+        });
+      } else {
+        throw Exception(response.data['base']['msg'] ?? '获取排名失败');
+      }
+    } catch (e) {
+      setState(() {
+        // 直接使用封装的错误信息格式（无需重复定义 _formatError）
+        errorMsg = e.toString().replaceAll('Exception: ', '');
+      });
+      print('获取排名数据异常：$e');
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // 当前页数据
+    // 计算当前页数据
     final start = (currentPage - 1) * itemsPerPage;
     final end = (start + itemsPerPage).clamp(0, allData.length);
     final currentData = allData.sublist(start, end);
@@ -43,7 +116,11 @@ class _RankingPageState extends State<RankingPage> {
         backgroundColor: Colors.blue[600],
         title: const Text(
           '积分排名',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700,fontSize: 18),
+          style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 18
+          ),
         ),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
@@ -73,13 +150,13 @@ class _RankingPageState extends State<RankingPage> {
                 decoration: InputDecoration(
                   prefixIcon: IconButton(
                     icon: const Icon(Icons.search),
-                    onPressed: _handleSearch, // 点击图标也可触发搜索
+                    onPressed: _handleSearch, // 点击图标搜索
                   ),
                   hintText: '搜索学生姓名',
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                onSubmitted: (_) => _handleSearch(), // 按回车搜索
+                onSubmitted: (_) => _handleSearch(), // 回车搜索
               ),
             ),
 
@@ -89,17 +166,29 @@ class _RankingPageState extends State<RankingPage> {
             Container(
               padding: const EdgeInsets.all(12),
               child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildDropdown('学年', selectedYear, yearOptions, (v) {
-                  setState(() => selectedYear = v!);
-                }),
-                 const SizedBox(width: 16),
-                _buildDropdown('学院', selectedCollege, collegeOptions, (v) {
-                  setState(() => selectedCollege = v!);
-                }),
-              ],
-            ),
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildDropdown('学年', selectedYear, yearOptions, (v) {
+                    if (v != null) {
+                      setState(() {
+                        selectedYear = v;
+                        currentPage = 1; // 重置页码
+                      });
+                      _fetchRankData(); // 重新加载数据
+                    }
+                  }),
+                  const SizedBox(width: 16),
+                  _buildDropdown('学院', selectedCollege, collegeOptions, (v) {
+                    if (v != null) {
+                      setState(() {
+                        selectedCollege = v;
+                        currentPage = 1; // 重置页码
+                      });
+                      _fetchRankData(); // 重新加载数据
+                    }
+                  }),
+                ],
+              ),
             ),
 
             const SizedBox(height: 16),
@@ -111,9 +200,9 @@ class _RankingPageState extends State<RankingPage> {
               child: const Row(
                 children: [
                   Expanded(flex: 1, child: Center(child: Text('排名', style: TextStyle(fontWeight: FontWeight.bold)))),
-                  Expanded(flex: 2, child: Center(child: Text('学年', style: TextStyle(fontWeight: FontWeight.bold)))),
                   Expanded(flex: 2, child: Center(child: Text('姓名', style: TextStyle(fontWeight: FontWeight.bold)))),
-                  Expanded(flex: 2, child: Center(child: Text('学院', style: TextStyle(fontWeight: FontWeight.bold)))),
+                  Expanded(flex: 3, child: Center(child: Text('学院', style: TextStyle(fontWeight: FontWeight.bold)))),
+                  Expanded(flex: 2, child: Center(child: Text('年级', style: TextStyle(fontWeight: FontWeight.bold)))),
                   Expanded(flex: 2, child: Center(child: Text('积分', style: TextStyle(fontWeight: FontWeight.bold)))),
                 ],
               ),
@@ -121,23 +210,56 @@ class _RankingPageState extends State<RankingPage> {
 
             const Divider(height: 1, thickness: 1),
 
-            // 表格数据
+            // 表格数据/加载状态/错误提示
             Expanded(
-              child: ListView.separated(
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : errorMsg != null
+                  ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      errorMsg!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                    TextButton(
+                      onPressed: _fetchRankData,
+                      child: const Text('重试'),
+                    ),
+                  ],
+                ),
+              )
+                  : allData.isEmpty
+                  ? const Center(child: Text('暂无数据'))
+                  : ListView.separated(
                 itemCount: currentData.length,
                 separatorBuilder: (_, __) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final item = currentData[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Row(
-                      children: [
-                        Expanded(flex: 1, child: Center(child: Text(item['rank'].toString()))),
-                        Expanded(flex: 2, child: Center(child: Text(item['year']))),
-                        Expanded(flex: 2, child: Center(child: Text(item['name']))),
-                        Expanded(flex: 2, child: Center(child: Text(item['college']))),
-                        Expanded(flex: 2, child: Center(child: Text(item['score']))),
-                      ],
+                  return InkWell(
+                    //TODO:点击跳转到详情页
+                    // 点击跳转到详情页
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => StudentScoreDetailPage(
+                          studentName: item['stu_name'],
+                          //studentId: item['stu_id'], // 传递学生ID
+                        ),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Row(
+                        children: [
+                          Expanded(flex: 1, child: Center(child: Text(item['rank'].toString()))),
+                          Expanded(flex: 2, child: Center(child: Text(item['stu_name']))),
+                          Expanded(flex: 3, child: Center(child: Text(item['college']))),
+                          Expanded(flex: 2, child: Center(child: Text(item['grade']))),
+                          Expanded(flex: 2, child: Center(child: Text(item['score']))),
+                        ],
+                      ),
                     ),
                   );
                 },
@@ -147,61 +269,57 @@ class _RankingPageState extends State<RankingPage> {
             const Divider(thickness: 1, height: 1),
 
             // 分页控制
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton(
-                    onPressed: currentPage > 1
-                        ? () => setState(() => currentPage--)
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                      side: const BorderSide(color: Colors.grey),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            if (!isLoading && errorMsg == null && allData.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton(
+                      onPressed: currentPage > 1
+                          ? () => setState(() => currentPage--)
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        side: const BorderSide(color: Colors.grey),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      ),
+                      child: const Text('上一页', style: TextStyle(fontSize: 13)),
                     ),
-                    child: const Text('上一页',style: TextStyle(fontSize: 13),),
-                  ),
-                  const SizedBox(width: 20),
-                  Text(
-                    '$currentPage / ${((allData.length - 1) ~/ itemsPerPage) + 1}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(width: 20),
-                  ElevatedButton(
-                    onPressed: end < allData.length
-                        ? () => setState(() => currentPage++)
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                      side: const BorderSide(color: Colors.grey),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    const SizedBox(width: 20),
+                    Text(
+                      '$currentPage / ${((totalCount - 1) ~/ itemsPerPage) + 1}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    child: const Text('下一页',style: TextStyle(fontSize: 13)),
-                  ),
-                ],
+                    const SizedBox(width: 20),
+                    ElevatedButton(
+                      onPressed: end < totalCount
+                          ? () => setState(() => currentPage++)
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        side: const BorderSide(color: Colors.grey),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      ),
+                      child: const Text('下一页', style: TextStyle(fontSize: 13)),
+                    ),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
     );
   }
 
-    //  搜索逻辑：跳转详情页
+  // 搜索逻辑
   void _handleSearch() {
-    final input = _searchController.text.trim();
-    if (input.isEmpty) return;
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => StudentScoreDetailPage(studentName: input),
-      ),
-    );
+    setState(() {
+      currentPage = 1; // 重置页码
+    });
+    _fetchRankData(); // 重新加载数据
   }
 
   // 下拉框组件
