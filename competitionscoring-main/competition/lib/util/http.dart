@@ -144,7 +144,12 @@ String _formatError(dynamic e) {
       case DioExceptionType.receiveTimeout:
         return "接收超时";
       case DioExceptionType.badResponse:
-        return "服务器错误（状态码：${e.response?.statusCode}）";
+        // 打印状态码 + 后端返回的错误信息（关键！）
+        String errorMsg = "服务器错误（状态码：${e.response?.statusCode}）";
+        if (e.response?.data != null) {
+          errorMsg += "，后端详情：${e.response?.data.toString()}";
+        }
+        return errorMsg;
       case DioExceptionType.cancel:
         return "请求已取消";
       default:
