@@ -1,8 +1,8 @@
-//辅导员端：  查看学生积分排行页面
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'student_score_detail_page.dart';
 import 'package:competition/util/token_util.dart';
+// 导入已封装的 HTTP 工具类（关键：复用现有封装，移除重复代码）
 import 'package:competition/util/http.dart';
 
 class RankingPage extends StatefulWidget {
@@ -245,7 +245,7 @@ class _RankingPageState extends State<RankingPage> {
                       MaterialPageRoute(
                         builder: (_) => StudentScoreDetailPage(
                           studentName: item['stu_name'],
-                          //studentId: item['stu_id'], // 传递学生ID
+                          studentId: item['stu_id'], // 传递学生ID
                         ),
                       ),
                     ),
