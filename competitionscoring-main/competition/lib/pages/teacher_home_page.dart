@@ -8,6 +8,7 @@ import 'ranking_page.dart';
 import 'student_appeal_page.dart';
 import 'login_page.dart';
 import 'feedback_page.dart';
+import 'student_award_page.dart';
 import 'package:competition/util/token_util.dart';
 
 class TeacherHomePage extends StatefulWidget {
@@ -179,6 +180,14 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
               color: Colors.green,
               title: '学生申诉',
               page: const StudentAppealPage(),
+            ),
+            // ⭐⭐⭐ 3. 新增的菜单：申报详情
+            _buildMenuItem(
+              context,
+              icon: Icons.description,
+              color: Colors.blue,
+              title: '申报详情',
+              page: const StudentAwardPage(),  // ← 你自己的申报奖项页面
             ),
             _buildMenuItem(
               context,
