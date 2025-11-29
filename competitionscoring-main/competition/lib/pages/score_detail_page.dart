@@ -46,9 +46,6 @@ class _ScoreDetailPageState extends State<ScoreDetailPage> {
 
       if (response.data["base"]["code"] == 10000) {
         List<dynamic> items = response.data["data"]["items"];
-        if (items.isNotEmpty) {
-          debugPrint("材料数据示例：${items.first}");
-        }
         for (var item in items) {
           await _fetchScoreByEventId(item);
         }
@@ -70,28 +67,14 @@ class _ScoreDetailPageState extends State<ScoreDetailPage> {
   Future<void> _fetchScoreByEventId(Map<String, dynamic> materialItem) async {
     try {
       String eventId = materialItem["event_id"] ?? "";
-      if (eventId.isEmpty || !RegExp(r'^\d+$').hasMatch(eventId)) {
-        debugPrint("无效的 event_id：$eventId（必须是纯数字）");
+      if (eventId.isEmpty) {
         _addScoreItem(materialItem, "0");
         return;
       }
-      // 2. 新增：获取 Id 参数（核心！从材料数据中取唯一标识，字段名需与后端返回一致）
-      String id = materialItem["id"] ?? materialItem["event_id"] ?? "";
-      if (id.isEmpty) {
-        debugPrint("材料缺少必填的 Id 参数，event_id：$eventId");
-        _addScoreItem(materialItem, "0");
-        return;
-      }
-
-      // 新增：打印 event_id 以便排查（确认参数正确）
-      debugPrint("请求积分的 event_id：$eventId");
 
       Response scoreResponse = await get(
         "/query/score/material",
-        queryParameters: {
-          "Id": id,
-          "event_id": eventId
-        },
+        queryParameters: {"event_id": eventId},
       );
 
       if (scoreResponse.data["base"]["code"] == 10000) {
@@ -589,7 +572,9 @@ class _ScoreDetailPageState extends State<ScoreDetailPage> {
                   onTap: () {
                     showDialog(
                       context: context,
-                      builder: (context) => AppealDialog(resultId: item['result_id']),
+                      builder: (context) => AppealDialog(
+                        // eventId: item['event_id'],
+                      ),
                     );
                   },
                   child: Container(
