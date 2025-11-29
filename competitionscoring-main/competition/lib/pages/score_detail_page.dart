@@ -1,4 +1,3 @@
-//学生端：查看个人积分
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:competition/util/http.dart';
@@ -16,7 +15,7 @@ class _ScoreDetailPageState extends State<ScoreDetailPage> {
   String selectedYear = '2024–2025';
   String selectedLevel = '全部';
 
-  // 存储从后端获取的积分数据
+  // 存储从后端获取的积分数据（包含score_id）
   List<Map<String, dynamic>> scoreData = [];
   bool _isLoading = true;
   String? _loadError;
@@ -46,6 +45,8 @@ class _ScoreDetailPageState extends State<ScoreDetailPage> {
 
       if (response.data["base"]["code"] == 10000) {
         List<dynamic> items = response.data["data"]["items"];
+        // 清空原有数据，避免重复
+        setState(() => scoreData.clear());
         for (var item in items) {
           await _fetchScoreByEventId(item);
         }
@@ -63,12 +64,13 @@ class _ScoreDetailPageState extends State<ScoreDetailPage> {
     }
   }
 
-  // 根据event_id获取积分
+  // 根据event_id获取积分（新增获取score_id）
   Future<void> _fetchScoreByEventId(Map<String, dynamic> materialItem) async {
     try {
       String eventId = materialItem["event_id"] ?? "";
       if (eventId.isEmpty) {
-        _addScoreItem(materialItem, "0");
+        // 无event_id时score_id设为空
+        _addScoreItem(materialItem, "0", "");
         return;
       }
 
@@ -79,19 +81,23 @@ class _ScoreDetailPageState extends State<ScoreDetailPage> {
 
       if (scoreResponse.data["base"]["code"] == 10000) {
         String finalScore = scoreResponse.data["data"]["final_score"].toString();
-        _addScoreItem(materialItem, finalScore);
+        // 从接口响应中获取score_id
+        String scoreId = scoreResponse.data["data"]["score_id"] ?? "";
+        _addScoreItem(materialItem, finalScore, scoreId);
       } else {
-        _addScoreItem(materialItem, "0");
+        // 接口请求成功但无积分时，score_id设为空
+        _addScoreItem(materialItem, "0", "");
         debugPrint("获取event_id=$eventId的积分失败：${scoreResponse.data["base"]["msg"]}");
       }
     } catch (e) {
-      _addScoreItem(materialItem, "0");
+      // 请求失败时score_id设为空
+      _addScoreItem(materialItem, "0", "");
       debugPrint("获取积分失败：$e");
     }
   }
 
-  // 添加数据到列表
-  void _addScoreItem(Map<String, dynamic> materialItem, String score) {
+  // 添加数据到列表（新增scoreId参数）
+  void _addScoreItem(Map<String, dynamic> materialItem, String score, String scoreId) {
     setState(() {
       scoreData.add({
         'title': materialItem["event_name"] ?? "未知赛事",
@@ -102,12 +108,13 @@ class _ScoreDetailPageState extends State<ScoreDetailPage> {
         'organizer': materialItem["event_organizer"] ?? "未知单位",
         'status': materialItem["material_status"] ?? "审核中",
         'score': score,
-        'event_id': materialItem["event_id"] ?? ""
+        'event_id': materialItem["event_id"] ?? "",
+        'score_id': scoreId, // 保存score_id
       });
     });
   }
 
-  // 筛选数据
+  // 筛选数据（保持不变）
   List<Map<String, dynamic>> get _filteredData {
     return scoreData.where((item) {
       bool levelMatch = selectedLevel == "全部"
@@ -121,7 +128,7 @@ class _ScoreDetailPageState extends State<ScoreDetailPage> {
     }).toList();
   }
 
-  // 查看详情弹窗（优化文字对齐）
+  // 查看详情弹窗（保持不变）
   void _showDetailDialog(Map<String, dynamic> item) {
     // 根据审核状态获取对应的图标和颜色
     Widget getStatusIcon() {
@@ -406,7 +413,7 @@ class _ScoreDetailPageState extends State<ScoreDetailPage> {
     );
   }
 
-  // 下拉框组件
+  // 下拉框组件（保持不变）
   Widget _buildDropdown({
     required String label,
     required String value,
@@ -442,7 +449,7 @@ class _ScoreDetailPageState extends State<ScoreDetailPage> {
     );
   }
 
-  // 表头
+  // 表头（保持不变）
   Widget _buildTableHeader() {
     return Container(
       color: Colors.grey[100],
@@ -493,7 +500,7 @@ class _ScoreDetailPageState extends State<ScoreDetailPage> {
     );
   }
 
-  // 每一行积分信息
+  // 每一行积分信息（修改申诉按钮参数）
   Widget _buildScoreRow(Map<String, dynamic> item) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 15),
@@ -567,13 +574,21 @@ class _ScoreDetailPageState extends State<ScoreDetailPage> {
                   ),
                 ),
                 const SizedBox(height: 3),
-                // 申诉按钮
+                // 申诉按钮（传递从接口获取的score_id）
                 GestureDetector(
                   onTap: () {
+                    String scoreId = item['score_id'] ?? "";
+                    if (scoreId.isEmpty) {
+                      // 无score_id时提示
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('该记录暂无积分ID，无法申诉')),
+                      );
+                      return;
+                    }
                     showDialog(
                       context: context,
                       builder: (context) => AppealDialog(
-                        // eventId: item['event_id'],
+                        resultId: scoreId, // 传递接口返回的score_id
                       ),
                     );
                   },
