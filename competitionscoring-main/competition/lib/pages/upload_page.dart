@@ -64,7 +64,7 @@ class _UploadPageState extends State<UploadPage> {
 
       // 2. 构造请求参数（根据上图示意，假设需要userId作为查询参数）
       Map<String, dynamic> queryParams = {
-        'user_id': userId,
+        'Id': userId,
         // 可根据实际需求添加其他参数，如分页参数
         'page_num': 1,
         'page_size': 10,
