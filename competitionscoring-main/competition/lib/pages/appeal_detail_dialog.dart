@@ -1,135 +1,89 @@
-
+//辅导员  处理学生申诉 申诉详情页面
 
 import 'package:flutter/material.dart';
 
-class AppealDetailDialog extends StatelessWidget {
+class AppealDetailDialog extends StatefulWidget {
   final Map<String, dynamic> item;
   final VoidCallback onApprove;
   final VoidCallback onReject;
+  // 必须声明的回调参数（用于接收处理结果输入框内容）
+  final ValueChanged<String> onResultChanged;
 
+  // 构造函数中明确标记所有参数为必填
   const AppealDetailDialog({
     super.key,
     required this.item,
     required this.onApprove,
     required this.onReject,
+    required this.onResultChanged, // 关键：必须传递此参数
   });
+
+  @override
+  State<AppealDetailDialog> createState() => _AppealDetailDialogState();
+}
+
+class _AppealDetailDialogState extends State<AppealDetailDialog> {
+  final TextEditingController _resultController = TextEditingController();
+
+  @override
+  void dispose() {
+    _resultController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      clipBehavior: Clip.hardEdge,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        width: double.infinity,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 顶部标题
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.blue[600],
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(10)),
-              ),
-              child: const Center(
-                child: Text(
-                  '详情',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16),
-                ),
-              ),
-            ),
+            const Text('申诉详情', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
 
+            // 申诉内容展示
+            Text('申诉内容：${widget.item['content'] ?? '无内容'}'),
+            const SizedBox(height: 16),
+
+            // 处理结果输入框（核心）
+            const Text('处理结果：', style: TextStyle(fontWeight: FontWeight.w500)),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _resultController,
+              decoration: const InputDecoration(
+                hintText: '请输入审核意见',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+              // 实时将输入内容传递给父组件
+              onChanged: (value) => widget.onResultChanged(value),
+            ),
             const SizedBox(height: 20),
 
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('学生附件',
-                      style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey,
-                          fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.insert_drive_file_outlined,
-                            size: 40, color: Colors.grey[500]),
-                        const SizedBox(height: 8),
-                        Text('学生上传的附件预览.pdf',
-                            style: TextStyle(
-                                color: Colors.grey[700], fontSize: 13)),
-                        const SizedBox(height: 4),
-                        Text('点击预览或下载',
-                            style: TextStyle(
-                                color: Colors.blue[600], fontSize: 12)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            // 底部按钮
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            const Color.fromARGB(255, 138, 200, 113),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6)),
-                      ),
-                      onPressed: onApprove,
-                      child: const Text('审核通过',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600)),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            const Color.fromARGB(255, 232, 93, 80),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6)),
-                      ),
-                      onPressed: onReject,
-                      child: const Text('审核驳回',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600)),
-                    ),
-                  ),
-                ],
-              ),
+            // 操作按钮
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('取消'),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: widget.onReject,
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: const Text('驳回'),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: widget.onApprove,
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                  child: const Text('通过'),
+                ),
+              ],
             ),
           ],
         ),
