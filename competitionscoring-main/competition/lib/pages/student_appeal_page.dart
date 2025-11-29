@@ -1,7 +1,7 @@
+// 辅导员端 查看学生申诉
 import 'package:flutter/material.dart';
 import 'appeal_detail_dialog.dart';
 import 'package:competition/util/http.dart';
-import 'package:competition/util/token_util.dart';
 
 class StudentAppealPage extends StatefulWidget {
   const StudentAppealPage({super.key});
@@ -22,6 +22,7 @@ class _StudentAppealPageState extends State<StudentAppealPage> {
   List<Map<String, dynamic>> appeals = [];
   bool isLoading = true;
   String errorMessage = '';
+  bool _isDetailLoading = false;
 
   @override
   void initState() {
@@ -57,6 +58,18 @@ class _StudentAppealPageState extends State<StudentAppealPage> {
     }
   }
 
+  // 格式化时间戳
+  String _formatTimestamp(String timestamp) {
+    if (timestamp.isEmpty || timestamp == '0') return '未知时间';
+    try {
+      final date = DateTime.fromMillisecondsSinceEpoch(int.parse(timestamp) * 1000);
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} '
+          '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return '时间格式错误';
+    }
+  }
+
   // 从后端加载申诉数据
   Future<void> _loadAppeals() async {
     try {
@@ -70,36 +83,24 @@ class _StudentAppealPageState extends State<StudentAppealPage> {
         queryParams['status'] = _getApiStatus(selectedStatus);
       }
 
-      print('发送请求，参数: $queryParams');
-
       final response = await get('/admin/query/appeal/stu', queryParameters: queryParams);
-
-      print('收到响应: ${response.data}');
 
       if (response.data['base']['code'] == 10000) {
         final items = response.data['data']['items'] as List<dynamic>;
-        print('获取到 ${items.length} 条申诉数据');
-
         setState(() {
-          appeals = items.map((item) {
-            return _convertApiDataToAppeal(item);
-          }).toList();
+          appeals = items.map((item) => _convertApiDataToAppeal(item)).toList();
         });
       } else {
         final errorMsg = response.data['base']['msg'] ?? '请求失败';
-        print('API返回错误: $errorMsg');
         throw Exception(errorMsg);
       }
     } catch (e) {
-      print('加载申诉数据异常: $e');
       setState(() {
         errorMessage = '加载失败: ${e.toString()}';
         appeals = [];
       });
     } finally {
-      setState(() {
-        isLoading = false;
-      });
+      setState(() => isLoading = false);
     }
   }
 
@@ -127,24 +128,196 @@ class _StudentAppealPageState extends State<StudentAppealPage> {
       return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
     }
 
-    String generateInfo(dynamic data) {
-      return '${data['appeal_type'] ?? "分级异议"} - 申诉ID: ${data['appeal_id']}';
-    }
-
-    String generateStudentInfo(dynamic data) {
-      return '学号: ${data['user_id']}';
+    // 处理附件路径显示
+    String formatAttachmentPath(String? path) {
+      if (path == null || path.isEmpty) return '无附件';
+      final fileName = path.split('/').last.split('\\').last;
+      return fileName;
     }
 
     return {
       'title': apiData['appeal_type'] ?? '分级异议',
       'date': formatDate(int.tryParse(apiData['created_at']?.toString() ?? '0') ?? 0),
-      'info': generateInfo(apiData),
-      'content': apiData['appeal_reason'] ?? '无申诉原因',
-      'student': generateStudentInfo(apiData),
+      'user_id': apiData['user_id'] ?? '未知学号',
+      'event_id': apiData['event_id'] ?? '',
+      'result_id': apiData['result_id'] ?? '',
+      'appeal_id': apiData['appeal_id'] ?? '',
+      'event_name': apiData['event_name'] ?? '未知赛事',
+      'award_level': apiData['award_level'] ?? '无',
+      'appeal_reason': apiData['appeal_reason'] ?? '无申诉原因',
+      'final_score': apiData['final_score'] ?? '0.0',
+      'attachment_path': formatAttachmentPath(apiData['attachment_path']),
       'status': uiStatus,
       'color': statusColor,
       'original_data': apiData,
     };
+  }
+
+  // 查看申诉详情（已处理的申诉）
+  Future<void> _viewAppealDetail(String appealId) async {
+    try {
+      setState(() => _isDetailLoading = true);
+
+      // 调用查询详情接口
+      final response = await get('/query/appeal', queryParameters: {'appeal_id': appealId});
+
+      if (response.data['base']['code'] == 10000) {
+        final detailData = response.data['data'];
+        _showDetailViewDialog(detailData);
+      } else {
+        throw Exception(response.data['base']['msg'] ?? '获取详情失败');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('获取详情失败: ${e.toString()}'), backgroundColor: Colors.red),
+      );
+    } finally {
+      setState(() => _isDetailLoading = false);
+    }
+  }
+
+  // 显示已处理申诉的详情弹窗 - 优化滚动体验
+  void _showDetailViewDialog(Map<String, dynamic> detailData) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.white, // 白底
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.grey.shade100, width: 1),
+        ),
+        elevation: 10,
+        // 限制弹窗左右边距，大屏幕更美观
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        // 弹窗主体使用Column拆分固定区域和滚动区域
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 1. 固定标题栏（始终可见）
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${detailData['appeal_type']}详情',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF333333),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 1,
+                    color: Colors.grey.shade100,
+                  ),
+                ],
+              ),
+            ),
+
+            // 2. 可滚动内容区（核心优化部分）
+            ConstrainedBox(
+              // 限制最大高度为屏幕的70%，避免超出可视范围
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.7,
+                minHeight: 120, // 最小高度，防止内容过少时弹窗过矮
+              ),
+              child: SingleChildScrollView(
+                // 内边距与标题栏、按钮区呼应
+                padding: const EdgeInsets.all(24),
+                // 滚动行为优化：支持惯性滚动，边缘回弹
+                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 详情信息展示 - 保持原有样式
+                    _buildDetailRow('申诉ID', detailData['appeal_id'] ?? '未知'),
+                    _buildDetailRow('申诉人学号', detailData['user_id'] ?? '未知'),
+                    _buildDetailRow('赛事名称', detailData['event_name'] ?? '未知'),
+                    _buildDetailRow('赛事级别', detailData['event_level'] ?? '未知'),
+                    _buildDetailRow('获奖等级', detailData['award_level'] ?? '未知'),
+                    _buildDetailRow('最终得分', detailData['final_score']?.toString() ?? '0.0'),
+                    _buildDetailRow('申诉类型', detailData['appeal_type'] ?? '未知'),
+                    _buildDetailRow('申诉原因', detailData['appeal_reason'] ?? '无'),
+                    _buildDetailRow('申诉时间', _formatTimestamp(detailData['created_at']?.toString() ?? '0')),
+                    _buildDetailRow('处理状态', _getUiStatus(detailData['status'] ?? '')),
+                    _buildDetailRow('处理人', detailData['handleBy'] ?? '未知'),
+                    _buildDetailRow('处理时间', _formatTimestamp(detailData['handleTime']?.toString() ?? '0')),
+                    _buildDetailRow('处理结果', detailData['handleResult'] ?? '无'),
+                  ],
+                ),
+              ),
+            ),
+
+            // 3. 固定底部按钮区（始终可见）
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue[600],
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    // 去除阴影，更简洁
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    '关闭',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 构建详情页信息行 - 优化UI
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              color: Color(0xFF666666),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 15,
+              color: Color(0xFF333333),
+              height: 1.3, // 增加行高，提升可读性
+            ),
+            softWrap: true,
+          ),
+          // 分隔线
+          if (label != '处理结果') // 最后一项不加分隔线
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Container(height: 1, color: Colors.grey.shade50),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -169,42 +342,27 @@ class _StudentAppealPageState extends State<StudentAppealPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildDropdown('学年', selectedYear, yearOptions, (v) {
-                  setState(() => selectedYear = v!);
-                }),
-                const SizedBox(width: 10),
-                _buildDropdown('赛事级别', selectedLevel, levelOptions, (v) {
-                  setState(() => selectedLevel = v!);
-                }),
-                const SizedBox(width: 10),
-                _buildDropdown('状态', selectedStatus, statusOptions, (v) {
-                  setState(() {
-                    selectedStatus = v!;
-                    _loadAppeals();
-                  });
-                }),
+                // _buildDropdown('学年', selectedYear, yearOptions, (v) => setState(() => selectedYear = v!)),
+                // const SizedBox(width: 10),
+                // _buildDropdown('赛事级别', selectedLevel, levelOptions, (v) => setState(() => selectedLevel = v!)),
+                // const SizedBox(width: 10),
+                _buildDropdown('状态', selectedStatus, statusOptions, (v) => setState(() {
+                  selectedStatus = v!;
+                  _loadAppeals();
+                })),
               ],
             ),
             const SizedBox(height: 16),
 
             // 加载状态显示
             if (isLoading)
-              const Expanded(
-                child: Center(child: CircularProgressIndicator()),
-              )
+              const Expanded(child: Center(child: CircularProgressIndicator()))
             else if (errorMessage.isNotEmpty)
               Expanded(
-                child: Center(
-                  child: Text(
-                    errorMessage,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                ),
+                child: Center(child: Text(errorMessage, style: const TextStyle(color: Colors.red))),
               )
             else if (appeals.isEmpty)
-                const Expanded(
-                  child: Center(child: Text('暂无申诉数据')),
-                )
+                const Expanded(child: Center(child: Text('暂无申诉数据')))
               else
                 Expanded(
                   child: ListView.builder(
@@ -228,55 +386,124 @@ class _StudentAppealPageState extends State<StudentAppealPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // 申诉类型和状态行
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
                                   item['title'],
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 15),
-                            Text('申诉时间：${item['date']}',
-                                style: const TextStyle(fontSize: 13, color: Colors.black87)),
-                            Text('识别信息：${item['info']}',
-                                style: const TextStyle(fontSize: 13, color: Colors.black87)),
-                            Text('申诉内容：${item['content']}',
-                                style: const TextStyle(fontSize: 13, color: Colors.black87)),
-                            Text('申诉人：${item['student']}',
-                                style: const TextStyle(fontSize: 13, color: Colors.black87)),
-                            const SizedBox(height: 20),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      if (item['status'] == '待审核') {
-                                        _showDetailDialog(item, index);
-                                      }
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: item['color'],
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(color: item['color']),
-                                      ),
-                                      child: Text(
-                                        item['status'],
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: item['color'],
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    item['status'],
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                 ),
                               ],
+                            ),
+                            const SizedBox(height: 16),
+
+                            // 详细信息展示
+                            _buildInfoRow('申诉人学号', item['user_id']),
+                            _buildInfoRow('赛事名称', item['event_name']),
+                            _buildInfoRow('获奖等级', item['award_level']),
+                            _buildInfoRow('最终得分', item['final_score'].toString()),
+                            _buildInfoRow('申诉时间', item['date']),
+                            _buildInfoRow('附件', item['attachment_path'],
+                                isAttachment: true,
+                                attachmentPath: item['original_data']['attachment_path']),
+
+                            const SizedBox(height: 12),
+
+                            // 申诉原因
+                            const Text(
+                              '申诉原因：',
+                              style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF9F9F9),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                item['appeal_reason'],
+                                style: const TextStyle(fontSize: 13, color: Colors.black87),
+                                softWrap: true,
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            // 操作按钮区
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // 待审核状态显示"处理申诉"按钮
+                                  if (item['status'] == '待审核')
+                                    GestureDetector(
+                                      onTap: () => _showDetailDialog(item, index),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue[600],
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: const Text(
+                                          '处理申诉',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+
+                                  // 已处理状态显示"查看详情"按钮
+                                  if (item['status'] != '待审核')
+                                    GestureDetector(
+                                      onTap: () => _viewAppealDetail(item['appeal_id']),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[600],
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: _isDetailLoading
+                                            ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                            : const Text(
+                                          '查看详情',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -286,6 +513,53 @@ class _StudentAppealPageState extends State<StudentAppealPage> {
                 ),
           ],
         ),
+      ),
+    );
+  }
+
+  // 构建信息行（通用组件）
+  Widget _buildInfoRow(String label, String value, {bool isAttachment = false, String? attachmentPath}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$label：',
+            style: const TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: isAttachment
+                ? GestureDetector(
+              onTap: () {
+                if (attachmentPath != null && attachmentPath.isNotEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('附件路径：$attachmentPath')),
+                  );
+                }
+              },
+              child: Text(
+                value,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: attachmentPath != null && attachmentPath.isNotEmpty
+                      ? Colors.blue[600]
+                      : Colors.black87,
+                  decoration: attachmentPath != null && attachmentPath.isNotEmpty
+                      ? TextDecoration.underline
+                      : TextDecoration.none,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            )
+                : Text(
+              value,
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -324,53 +598,50 @@ class _StudentAppealPageState extends State<StudentAppealPage> {
     );
   }
 
-  // 显示详情弹窗（修复：添加 onResultChanged 参数）
+  // 显示待处理申诉的详情弹窗
   void _showDetailDialog(Map<String, dynamic> item, int index) {
-    String handledResult = ''; // 存储处理结果输入框的内容
+    String handledResult = '';
 
     showDialog(
       context: context,
       builder: (context) => AppealDetailDialog(
         item: item,
+        eventId: item['event_id'],
+        resultId: item['result_id'],
+        appealId: item['appeal_id'],
         onApprove: () {
-          // 审核通过前验证处理结果是否为空
           if (handledResult.trim().isEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('请输入处理结果'), backgroundColor: Colors.orange),
             );
             return;
           }
-          // 调用审核接口并传递处理结果
-          _handleAppealReview(item['original_data']['appeal_id'], true, handledResult);
+          _handleAppealReview(item['appeal_id'], true, handledResult);
         },
         onReject: () {
-          // 审核驳回前验证处理结果是否为空
           if (handledResult.trim().isEmpty) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('请输入处理结果'), backgroundColor: Colors.orange),
             );
             return;
           }
-          // 调用审核接口并传递处理结果
-          _handleAppealReview(item['original_data']['appeal_id'], false, handledResult);
+          _handleAppealReview(item['appeal_id'], false, handledResult);
         },
-        // 补充缺失的参数：接收输入框的内容
         onResultChanged: (value) {
-          handledResult = value; // 实时更新处理结果
+          handledResult = value;
         },
       ),
     );
   }
 
-  // 处理申诉审核（新增 handledResult 参数接收处理结果）
+  // 处理申诉审核
   Future<void> _handleAppealReview(String appealId, bool isApprove, String handledResult) async {
     try {
-      // 构建请求参数（包含处理结果）
       final status = isApprove ? 'approved' : 'rejected';
       final response = await post('/appeal/status', data: {
         'appeal_id': appealId,
         'status': status,
-        'handled_result': handledResult, // 传递处理结果到后端
+        'handled_result': handledResult,
       });
 
       if (response.data['base']['code'] == 10000) {
@@ -381,14 +652,13 @@ class _StudentAppealPageState extends State<StudentAppealPage> {
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pop(context); // 关闭弹窗
-          _loadAppeals(); // 刷新列表数据
+          Navigator.pop(context);
+          _loadAppeals();
         }
       } else {
         throw Exception(response.data['base']['msg'] ?? '操作失败');
       }
     } catch (e) {
-      print('处理申诉失败: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
