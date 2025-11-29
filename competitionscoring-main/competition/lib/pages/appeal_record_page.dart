@@ -1,356 +1,420 @@
-// 申诉记录页面(学生端)
+// 学生申诉页面(教师端)
+
 import 'package:flutter/material.dart';
+import 'appeal_detail_dialog.dart';
 import 'package:competition/util/http.dart';
 import 'package:competition/util/token_util.dart';
 
-class AppealRecordPage extends StatefulWidget {
-  const AppealRecordPage({super.key});
+class StudentAppealPage extends StatefulWidget {
+  const StudentAppealPage({super.key});
 
+  //
   @override
-  State<AppealRecordPage> createState() => _AppealRecordPageState();
+  State<StudentAppealPage> createState() => _StudentAppealPageState();
 }
 
-class _AppealRecordPageState extends State<AppealRecordPage> {
+class _StudentAppealPageState extends State<StudentAppealPage> {
   String selectedYear = '2024-2025';
   String selectedLevel = '全部';
-  
+  String selectedStatus = '待审核'; // 保持原样
+
+  final List<String> yearOptions = ['2024-2025', '2023-2024', '2022-2023'];
+  final List<String> levelOptions = ['全部', '校级', '省级', '国家级'];
+  final List<String> statusOptions = ['待审核', '审核通过', '审核驳回']; // 保持原样
+
   List<Map<String, dynamic>> appeals = [];
   bool isLoading = true;
-  bool hasError = false;
   String errorMessage = '';
 
   @override
   void initState() {
     super.initState();
-    _loadAppealRecords();
+    _loadAppeals();
   }
 
-  // 从后端加载申诉记录
-  Future<void> _loadAppealRecords() async {
-  setState(() {
-    isLoading = true;
-    hasError = false;
-  });
+  // 状态映射：前端状态 -> 后端状态
+  String _getApiStatus(String uiStatus) {
+    switch (uiStatus) {
+      case '待审核':
+        return 'pending';
+      case '审核通过':
+        return 'approved';
+      case '审核驳回':
+        return 'rejected';
+      default:
+        return 'pending';
+    }
+  }
 
-  try {
-    print('开始请求申诉记录...');
-    final accessToken = await TokenUtil.getAccessToken();
-    final refreshToken = await TokenUtil.getRefreshToken();
-    final userId = await TokenUtil.getUserId();
-    
-    print('当前用户ID: $userId');
-    print('AccessToken: ${accessToken != null ? "存在" : "不存在"}');
-    print('RefreshToken: ${refreshToken != null ? "存在" : "不存在"}');
+  // 状态映射：后端状态 -> 前端状态
+  String _getUiStatus(String apiStatus) {
+    switch (apiStatus) {
+      case 'pending':
+        return '待审核';
+      case 'approved':
+        return '审核通过';
+      case 'rejected':
+        return '审核驳回';
+      default:
+        return '待审核';
+    }
+  }
 
-    final response = await get('/query/appeal/stu');
-    print('请求完成，状态码: ${response.statusCode}');
-    
-    if (response.statusCode == 200) {
-      final responseData = response.data;
-      print('响应数据: $responseData');
-      
-      if (responseData['base']['code'] == 10000) {
-        final items = responseData['data']['items'] as List<dynamic>;
-        print('获取到 ${items.length} 条申诉记录');
-        
+  // 从后端加载申诉数据
+  Future<void> _loadAppeals() async {
+    try {
+      setState(() {
+        isLoading = true;
+        errorMessage = '';
+      });
+
+      Map<String, dynamic> queryParams = {};
+      if (selectedStatus != '全部') {
+        queryParams['status'] = _getApiStatus(selectedStatus);
+      }
+
+      print('发送请求，参数: $queryParams'); // 调试输出
+
+      final response = await get('/admin/query/appeal/stu', queryParameters: queryParams);
+
+      print('收到响应: ${response.data}'); // 调试输出
+
+      if (response.data['base']['code'] == 10000) {
+        final items = response.data['data']['items'] as List<dynamic>;
+        print('获取到 ${items.length} 条申诉数据'); // 调试输出
+
         setState(() {
           appeals = items.map((item) {
-            return _convertToDisplayData(item);
+            return _convertApiDataToAppeal(item);
           }).toList();
         });
       } else {
-        print('业务逻辑错误: ${responseData['base']['msg']}');
-        setState(() {
-          hasError = true;
-          errorMessage = responseData['base']['msg'] ?? '加载失败';
-        });
+        final errorMsg = response.data['base']['msg'] ?? '请求失败';
+        print('API返回错误: $errorMsg');
+        throw Exception(errorMsg);
       }
-    } else {
-      print('HTTP错误: ${response.statusCode}');
+    } catch (e) {
+      print('加载申诉数据异常: $e');
       setState(() {
-        hasError = true;
-        errorMessage = '网络请求失败: ${response.statusCode}';
+        errorMessage = '加载失败: ${e.toString()}';
+        appeals = [];
+      });
+    } finally {
+      setState(() {
+        isLoading = false;
       });
     }
-  } catch (e) {
-    print('异常信息: $e');
-    setState(() {
-      hasError = true;
-      errorMessage = '加载申诉记录失败: $e';
-    });
-  } finally {
-    setState(() {
-      isLoading = false;
-    });
   }
-}
 
-  // 将后端数据转换为前端显示格式
-  Map<String, dynamic> _convertToDisplayData(Map<String, dynamic> backendData) {
-    // 状态映射
-    String statusText;
-    Color statusColor;
-    
-    switch (backendData['status']) {
-      case 'pending':
-        statusText = '待审核';
+  // 将API数据转换为前端使用的格式
+  Map<String, dynamic> _convertApiDataToAppeal(dynamic apiData) {
+    // 状态颜色映射
+    Color statusColor = Colors.orange;
+    String uiStatus = _getUiStatus(apiData['status'] ?? 'pending');
+
+    switch (uiStatus) {
+      case '审核通过':
+        statusColor = const Color.fromARGB(255, 138, 200, 113);
+        break;
+      case '审核驳回':
+        statusColor = const Color.fromARGB(255, 232, 93, 80);
+        break;
+      case '待审核':
+      default:
         statusColor = Colors.orange;
         break;
-      case 'approved':
-        statusText = '审核通过';
-        statusColor = Colors.green;
-        break;
-      case 'rejected':
-        statusText = '审核驳回';
-        statusColor = Colors.red;
-        break;
-      default:
-        statusText = '待审核';
-        statusColor = Colors.orange;
     }
-    
-    // 申诉类型映射
-    String appealTypeText;
-    switch (backendData['appeal_type']) {
-      case '分级异议':
-        appealTypeText = '赛事级别认定有误';
-        break;
-      case '积分异议':
-        appealTypeText = '积分计算有误';
-        break;
-      default:
-        appealTypeText = backendData['appeal_type'] ?? '其他异议';
-    }
-    
+
     // 时间戳转换
-    String formatTime(String timestamp) {
-      try {
-        final time = DateTime.fromMillisecondsSinceEpoch(int.parse(timestamp) * 1000);
-        return '${time.year}-${time.month.toString().padLeft(2, '0')}-${time.day.toString().padLeft(2, '0')}';
-      } catch (e) {
-        return '未知时间';
-      }
+    String formatDate(int timestamp) {
+      if (timestamp == 0) return '未知时间';
+      final date = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000);
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    }
+
+    // 生成显示信息
+    String generateInfo(dynamic data) {
+      return '${data['appeal_type'] ?? "分级异议"} - 申诉ID: ${data['appeal_id']}';
+    }
+
+    // 生成学生显示信息
+    String generateStudentInfo(dynamic data) {
+      return '学号: ${data['user_id']}';
     }
 
     return {
-      'title': '竞赛申诉', // 可以根据result_id获取具体赛事名称，这里使用通用标题
-      'appealTime': formatTime(backendData['created_at']),
-      'identifyInfo': '申诉ID: ${backendData['appeal_id']}',
-      'content': backendData['appeal_reason'],
-      'status': statusText,
+      'title': apiData['appeal_type'] ?? '分级异议',
+      'date': formatDate(int.tryParse(apiData['created_at']?.toString() ?? '0') ?? 0),
+      'info': generateInfo(apiData),
+      'content': apiData['appeal_reason'] ?? '无申诉原因',
+      'student': generateStudentInfo(apiData),
+      'status': uiStatus,
       'color': statusColor,
-      'appealType': backendData['appeal_type'],
-      'originalData': backendData, // 保留原始数据
+      'original_data': apiData, // 保存原始数据供详情对话框使用
     };
-  }
-
-  // 刷新数据
-  Future<void> _refreshData() async {
-    await _loadAppealRecords();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF6F6F6),
       appBar: AppBar(
         backgroundColor: Colors.blue[600],
-        title: const Text('申诉记录',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text(
+          '学生申诉',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700,fontSize: 18),
+        ),
         centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _refreshData,
-            tooltip: '刷新',
-          ),
-        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 顶部筛选
+            // 顶部筛选行 - 完全保持不变
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildDropdown(
-                  label: '学年',
-                  value: selectedYear,
-                  items: const ['2023-2024', '2024-2025', '2025-2026'],
-                  onChanged: (value) => setState(() => selectedYear = value!),
-                ),
-                _buildDropdown(
-                  label: '赛事级别',
-                  value: selectedLevel,
-                  items: const ['全部', '国家级', '省级', '校级'],
-                  onChanged: (value) => setState(() => selectedLevel = value!),
-                ),
+                _buildDropdown('学年', selectedYear, yearOptions, (v) {
+                  setState(() => selectedYear = v!);
+                }),
+                const SizedBox(width: 10),
+                _buildDropdown('赛事级别', selectedLevel, levelOptions, (v) {
+                  setState(() => selectedLevel = v!);
+                }),
+                const SizedBox(width: 10),
+                _buildDropdown('状态', selectedStatus, statusOptions, (v) {
+                  setState(() {
+                    selectedStatus = v!;
+                    _loadAppeals(); // 状态改变时重新加载数据
+                  });
+                }),
               ],
             ),
-            const SizedBox(height: 12),
-            
-            // 加载状态和错误处理
+            const SizedBox(height: 16),
+
+            // 加载状态显示
             if (isLoading)
               const Expanded(
                 child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text('正在加载申诉记录...'),
-                    ],
-                  ),
+                  child: CircularProgressIndicator(),
                 ),
               )
-            else if (hasError)
+            else if (errorMessage.isNotEmpty)
               Expanded(
                 child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                      const SizedBox(height: 16),
-                      Text('加载失败: $errorMessage', textAlign: TextAlign.center),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _refreshData,
-                        child: const Text('重试'),
-                      ),
-                    ],
+                  child: Text(
+                    errorMessage,
+                    style: const TextStyle(color: Colors.red),
                   ),
                 ),
               )
             else if (appeals.isEmpty)
-              const Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
-                      SizedBox(height: 16),
-                      Text('暂无申诉记录', style: TextStyle(fontSize: 16, color: Colors.grey)),
-                    ],
+                const Expanded(
+                  child: Center(
+                    child: Text('暂无申诉数据'),
                   ),
-                ),
-              )
-            else
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: _refreshData,
+                )
+              else
+              // 内容卡片列表 - 完全保持不变
+                Expanded(
                   child: ListView.builder(
                     itemCount: appeals.length,
                     itemBuilder: (context, index) {
                       final item = appeals[index];
-                      return _buildAppealCard(item);
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.withOpacity(0.15),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  item['title'],
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold, fontSize: 14),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 15),
+                            Text('申诉时间：${item['date']}',
+                                style: const TextStyle(
+                                    fontSize: 13, color: Colors.black87)),
+                            Text('识别信息：${item['info']}',
+                                style: const TextStyle(
+                                    fontSize: 13, color: Colors.black87)),
+                            Text('申诉内容：${item['content']}',
+                                style: const TextStyle(
+                                    fontSize: 13, color: Colors.black87)),
+                            Text('申诉人：${item['student']}',
+                                style: const TextStyle(
+                                    fontSize: 13, color: Colors.black87)),
+                            const SizedBox(height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      if (item['status'] == '待审核') {
+                                        _showDetailDialog(item, index);
+                                      }
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: item['color'],
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: item['color']),
+                                      ),
+                                      child: Text(
+                                        item['status'],
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
                     },
                   ),
                 ),
-              ),
           ],
         ),
       ),
     );
   }
 
-  // 下拉选择框组件
-  Widget _buildDropdown({
-    required String label,
-    required String value,
-    required List<String> items,
-    required void Function(String?) onChanged,
-  }) {
-    return Row(
-      children: [
-        Text('$label：', style: const TextStyle(fontSize: 15)),
-        Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade400),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: value,
-              items: items
-                  .map((item) => DropdownMenuItem<String>(
-                        value: item,
-                        child: Text(item, style: const TextStyle(fontSize: 15)),
-                      ))
-                  .toList(),
-              onChanged: onChanged,
-              icon: const Icon(Icons.arrow_drop_down, size: 20),
-            ),
+  // 通用下拉菜单构建 - 完全保持不变
+  Widget _buildDropdown(String label, String value, List<String> options,
+      ValueChanged<String?> onChanged) {
+    return Expanded(
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: value,
+            isExpanded: true,
+            onChanged: onChanged,
+            items: options
+                .map((e) =>
+                DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 13),
+                  overflow: TextOverflow.ellipsis,maxLines: 1,)))
+                .toList(),
           ),
         ),
-      ],
+      ),
     );
   }
 
-  // 申诉卡片
-  Widget _buildAppealCard(Map<String, dynamic> item) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14), 
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, 1),
-          )
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 标题 + 状态
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                item['title'],
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+  void _showDetailDialog(Map<String, dynamic> item, int index) {
+    String handledResult = ''; // 存储处理结果输入框的内容
+
+    showDialog(
+      context: context,
+      builder: (context) => AppealDetailDialog(
+        item: item,
+        onApprove: () {
+          // 验证处理结果不为空
+          if (handledResult.trim().isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('请输入处理结果'),
+                backgroundColor: Colors.orange,
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text('申诉时间：${item['appealTime']}',
-              style: const TextStyle(fontSize: 13, color: Colors.black87)),
-          Text('申诉类型：${item['appealType']}',
-              style: const TextStyle(fontSize: 13, color: Colors.black87)),
-          Text('申诉内容：${item['content']}',
-              style: const TextStyle(fontSize: 13, color: Colors.black87)),
-          const SizedBox(height: 30),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: item['color'].withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  item['status'],
-                  style: TextStyle(
-                      color: item['color'],
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500),
-                ),
+            );
+            return;
+          }
+          // 调用审核通过接口，传递处理结果
+          _handleAppealReview(item['original_data']['appeal_id'], true, handledResult);
+        },
+        onReject: () {
+          // 验证处理结果不为空
+          if (handledResult.trim().isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('请输入处理结果'),
+                backgroundColor: Colors.orange,
               ),
-            ],
-          ),
-        ],
+            );
+            return;
+          }
+          // 调用审核驳回接口，传递处理结果
+          _handleAppealReview(item['original_data']['appeal_id'], false, handledResult);
+        },
+        // 补充缺失的参数：接收输入框内容
+        onResultChanged: (value) {
+          handledResult = value; // 实时更新处理结果
+        },
       ),
     );
+  }
+
+  // 处理申诉审核（新增 handledResult 参数）
+  Future<void> _handleAppealReview(String appealId, bool isApprove, String handledResult) async {
+    try {
+      // 构建请求参数（包含处理结果）
+      final status = isApprove ? 'approved' : 'rejected';
+      final response = await post('/appeal/status', data: {
+        'appeal_id': appealId,
+        'status': status,
+        'handled_result': handledResult, // 传递处理结果
+      });
+
+      if (response.data['base']['code'] == 10000) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(isApprove ? '审核通过成功' : '审核驳回成功'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context); // 关闭弹窗
+          // 刷新数据列表
+          // （如果有加载数据的方法，比如 _loadAppeals()，这里需要调用一次）
+        }
+      } else {
+        throw Exception(response.data['base']['msg'] ?? '操作失败');
+      }
+    } catch (e) {
+      print('处理申诉失败: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('操作失败: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
