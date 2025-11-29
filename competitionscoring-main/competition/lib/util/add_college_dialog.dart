@@ -152,12 +152,15 @@ class _AddCollegeDialogState extends State<AddCollegeDialog> {
       // print(majorName);
       // print('majorName 类型：${majorName?.runtimeType}');
       // 发送POST请求
+
+      // 构建 multipart/form-data 格式的请求体
+      FormData formData = FormData.fromMap({
+        'major_name': majorName,
+        'college_id': _selectedCollegeId!,
+      });
       Response response = await post(
         '/admin/majors', // 新增专业接口
-        data: {
-          'major_name': majorName,
-          'college_id': _selectedCollegeId,
-        }
+        data: formData, // 传入 FormData 对象
       );
 
       // 解析响应
