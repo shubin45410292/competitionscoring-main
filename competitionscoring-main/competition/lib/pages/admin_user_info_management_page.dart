@@ -1,9 +1,7 @@
-//用户信息管理页面(管理员端)
-
 import 'package:competition/util/addUserDialog.dart';
 import 'package:flutter/material.dart';
-
 import '../util/edit_college_dialog.dart';
+import 'package:competition/util/http.dart'; // 导入封装的HTTP工具
 
 class AdminUserInfoManagementPage extends StatefulWidget {
   const AdminUserInfoManagementPage({super.key});
@@ -17,64 +15,112 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
   final int itemsPerPage = 5;
   final TextEditingController _searchController = TextEditingController();
 
-  // 扩充用户数据，增加更多姓名、学院、专业组合
-  final List<Map<String, String>> allData = List.generate(30, (index) {
-    // 更多姓名选项
-    final names = ['张三', '李四', '王五', '赵六', '孙七', '周八', '吴九', '郑十', '钱十一', '冯十二', '陈十三', '褚十四', '卫十五', '蒋十六', '沈十七'];
-    // 更多学院选项
-    final colleges = ['计算机与大数据', '设计学院', '管理学院', '电子信息学院', '自动化学院', '外国语学院', '文学院', '理学院'];
-    // 更多专业选项
-    final majors = [
-      '软件工程', '计算机科学与技术', '数据科学与大数据技术',
-      '视觉传达设计', '环境设计', '产品设计',
-      '工商管理', '市场营销', '人力资源管理',
-      '电子信息工程', '通信工程', '物联网工程',
-      '自动化', '智能科学与技术',
-      '英语', '日语',
-      '汉语言文学', '新闻学',
-      '数学与应用数学', '物理学'
-    ];
-    // 年级选项
-    final enrollmentYears = ['2021年', '2022年', '2023年', '2024年'];
+  // 数据状态管理
+  List<Map<String, dynamic>> allData = []; // 存储接口返回的用户数据
+  bool isLoading = true;
+  String errorMsg = "";
+  int totalCount = 0; // 总数据量（用于分页）
 
-    return {
-      'name': names[index % names.length],
-      'role': ['学生', '管理员', '辅导员'][index % 3], // 增加辅导员角色
-      'college': colleges[index % colleges.length],
-      'major': majors[index % majors.length],
-      'enrollmentYear': enrollmentYears[index % enrollmentYears.length],
-    };
-  });
-
-  // 筛选条件（去掉选项中的前缀文字，更简洁）
+  // 筛选条件（移除专业筛选）
   String selectedCollege = '全部学院';
   String selectedRole = '全部角色';
-  String selectedMajor = '全部专业';
 
-  // 下拉选项（优化格式，去掉前缀）
+  // 下拉选项（移除专业相关选项）
   final List<String> collegeOptions = [
     '全部学院',
-    '计算机与大数据',
-    '设计学院',
-    '管理学院',
-    '电子信息学院',
-    '自动化学院',
     '外国语学院',
-    '文学院',
-    '理学院'
+    '计算机与大数据学院',
+    '环境科学与工程学院',
+    '理学院',
+    '电子与信息工程学院',
+    '经济管理学院',
+    '人文社会科学学院',
+    '医学院',
+    '艺术学院'
   ];
   final List<String> roleOptions = ['全部角色', '学生', '管理员', '辅导员'];
-  final List<String> majorOptions = [
-    '全部专业',
-    '软件工程', '计算机科学与技术', '数据科学与大数据技术',
-    '视觉传达设计', '环境设计', '产品设计',
-    '工商管理', '市场营销', '人力资源管理',
-    '电子信息工程', '通信工程', '物联网工程',
-    '自动化', '智能科学与技术',
-    '英语', '日语',
-    '汉语言文学', '新闻学',
-    '数学与应用数学', '物理学'
-  ];
+
+  @override
+  void initState() {
+    super.initState();
+    // 初始化时加载数据
+    _fetchUserData();
+  }
+
+  // 从后端获取用户数据（移除专业筛选参数）
+  Future<void> _fetchUserData() async {
+    setState(() {
+      isLoading = true;
+      errorMsg = "";
+    });
+
+    try {
+      // 构建请求参数（去掉专业筛选参数）
+      final queryParameters = {
+        if (selectedCollege != '全部学院') 'college': selectedCollege,
+        if (selectedRole != '全部角色') 'role': _convertRoleToApi(selectedRole),
+        'page_num': currentPage.toString(),
+        'page_size': itemsPerPage.toString(),
+        // 搜索参数（如果有搜索内容）
+        if (_searchController.text.isNotEmpty) 'username': _searchController.text.trim(),
+      };
+
+      // 调用封装的GET方法请求接口
+      final response = await get(
+        '/admin/user/info', // 接口路径（已拼接baseUrl）
+        queryParameters: queryParameters,
+      );
+
+      // 解析响应数据
+      Map<String, dynamic> responseData = response.data;
+      if (responseData['base']?['code'] == 10000) {
+        // 接口调用成功
+        setState(() {
+          allData = List<Map<String, dynamic>>.from(responseData['data']?['item'] ?? []);
+          totalCount = responseData['data']?['total'] ?? 0;
+          isLoading = false;
+        });
+      } else {
+        // 接口返回错误信息
+        throw Exception(responseData['base']?['msg'] ?? '获取用户数据失败');
+      }
+    } catch (e) {
+      // 请求失败处理
+      setState(() {
+        errorMsg = e.toString().replaceAll('Exception: ', '');
+        isLoading = false;
+      });
+      print('获取用户数据失败：$e');
+    }
+  }
+
+  // 将前端角色文本转换为接口所需的参数（如：学生 -> student）
+  String _convertRoleToApi(String role) {
+    switch (role) {
+      case '学生':
+        return 'student';
+      case '管理员':
+        return 'admin';
+      case '辅导员':
+        return 'counselor';
+      default:
+        return role;
+    }
+  }
+
+  // 将接口返回的角色参数转换为前端显示文本（如：student -> 学生）
+  String _convertRoleToDisplay(String role) {
+    switch (role) {
+      case 'student':
+        return '学生';
+      case 'admin':
+        return '管理员';
+      case 'counselor':
+        return '辅导员';
+      default:
+        return role;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,26 +128,8 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
     const Color bgColor = Color(0xFFF7F8FA);
     const double cardRadius = 12;
 
-    // 筛选逻辑：根据选中的条件过滤数据
-    final filteredData = allData.where((item) {
-      // 学院筛选
-      final collegeMatch = selectedCollege == '全部学院' || item['college'] == selectedCollege;
-      // 专业筛选
-      final majorMatch = selectedMajor == '全部专业' || item['major'] == selectedMajor;
-      // 角色筛选
-      final roleMatch = selectedRole == '全部角色' || item['role'] == selectedRole;
-      // 搜索筛选（姓名包含搜索文字）
-      final searchMatch = _searchController.text.trim().isEmpty ||
-          item['name']!.contains(_searchController.text.trim());
-
-      return collegeMatch && majorMatch && roleMatch && searchMatch;
-    }).toList();
-
-    // 分页逻辑（基于筛选后的数据）
-    final totalPages = (filteredData.length / itemsPerPage).ceil();
-    final start = (currentPage - 1) * itemsPerPage;
-    final end = (start + itemsPerPage).clamp(0, filteredData.length);
-    final currentData = filteredData.sublist(start, end);
+    // 计算总页数（基于接口返回的total）
+    final totalPages = (totalCount / itemsPerPage).ceil();
 
     return Scaffold(
       appBar: AppBar(
@@ -138,7 +166,7 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
           children: [
             // 搜索栏
             Container(
-              width: double.infinity, // 适配屏幕宽度
+              width: double.infinity,
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(8),
@@ -158,6 +186,7 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
                     onPressed: () {
                       setState(() {
                         currentPage = 1; // 搜索后重置到第一页
+                        _fetchUserData(); // 重新请求数据
                       });
                     },
                   ),
@@ -167,42 +196,38 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
                 ),
                 onSubmitted: (_) {
                   setState(() {
-                    currentPage = 1; // 搜索后重置到第一页
+                    currentPage = 1;
+                    _fetchUserData();
                   });
                 },
               ),
             ),
             const SizedBox(height: 16),
 
-            // 筛选行
+            // 筛选行（移除专业下拉框，调整布局为2列均分）
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _buildDropdown('学院', selectedCollege, collegeOptions, (v) {
                   setState(() {
                     selectedCollege = v!;
-                    currentPage = 1; // 筛选后重置到第一页
-                  });
-                }),
-                const SizedBox(width: 8),
-                _buildDropdown('专业', selectedMajor, majorOptions, (v) {
-                  setState(() {
-                    selectedMajor = v!;
-                    currentPage = 1; // 筛选后重置到第一页
+                    currentPage = 1;
+                    _fetchUserData(); // 筛选条件变化后重新请求
                   });
                 }),
                 const SizedBox(width: 8),
                 _buildDropdown('角色', selectedRole, roleOptions, (v) {
                   setState(() {
                     selectedRole = v!;
-                    currentPage = 1; // 筛选后重置到第一页
+                    currentPage = 1;
+                    _fetchUserData();
                   });
                 }),
               ],
             ),
             const SizedBox(height: 16),
 
-            // 表格头
+            // 表格头（保持不变，仍显示专业列，仅移除筛选功能）
             Container(
               color: Colors.grey.shade200,
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -218,24 +243,40 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
             ),
             const Divider(height: 1, thickness: 1),
 
-            // 表格数据（处理无数据情况）
+            // 表格数据（处理加载、错误、无数据状态）
             Expanded(
-              child: currentData.isEmpty
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator(color: Colors.blue))
+                  : errorMsg.isNotEmpty
+                  ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(errorMsg, style: const TextStyle(color: Colors.red)),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _fetchUserData,
+                      child: const Text('重新加载'),
+                    ),
+                  ],
+                ),
+              )
+                  : allData.isEmpty
                   ? const Center(child: Text('暂无匹配数据'))
                   : ListView.separated(
-                itemCount: currentData.length,
+                itemCount: allData.length,
                 separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey),
                 itemBuilder: (context, index) {
-                  final item = currentData[index];
+                  final item = allData[index];
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Row(
                       children: [
-                        Expanded(flex: 1, child: Center(child: Text(item['name']!, style: const TextStyle(fontSize: 14)))),
-                        Expanded(flex: 2, child: Center(child: Text(item['role']!, style: const TextStyle(fontSize: 14)))),
-                        Expanded(flex: 2, child: Center(child: Text(item['college']!, style: const TextStyle(fontSize: 14)))),
-                        Expanded(flex: 2, child: Center(child: Text(item['major']!, style: const TextStyle(fontSize: 14)))),
-                        Expanded(flex: 2, child: Center(child: Text(item['enrollmentYear']!, style: const TextStyle(fontSize: 14)))),
+                        Expanded(flex: 1, child: Center(child: Text(item['username'] ?? '未知', style: const TextStyle(fontSize: 14)))),
+                        Expanded(flex: 2, child: Center(child: Text(_convertRoleToDisplay(item['role'] ?? '未知'), style: const TextStyle(fontSize: 14)))),
+                        Expanded(flex: 2, child: Center(child: Text(item['college'] ?? '未知', style: const TextStyle(fontSize: 14)))),
+                        Expanded(flex: 2, child: Center(child: Text(item['Major'] ?? '未知', style: const TextStyle(fontSize: 14)))),
+                        Expanded(flex: 2, child: Center(child: Text(item['grade'] ?? '未知', style: const TextStyle(fontSize: 14)))),
                       ],
                     ),
                   );
@@ -259,8 +300,11 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
                           top: Radius.circular(18),
                         ),
                       ),
-                      builder: (_) => const AddUserDialog(),// 添加用户弹窗组件
-                    );
+                      builder: (_) => const AddUserDialog(),
+                    ).then((_) {
+                      // 关闭弹窗后刷新数据
+                      _fetchUserData();
+                    });
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue[600],
@@ -276,110 +320,49 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
                   child: const Text('新增'),
                 ),
                 const SizedBox(width: 12),
-            //     ElevatedButton(
-            //       onPressed: () {
-            //         showModalBottomSheet(
-            //           context: context,
-            //           isScrollControlled: true,
-            //           backgroundColor: Colors.white,
-            //           shape: const RoundedRectangleBorder(
-            //             borderRadius: BorderRadius.vertical(
-            //               top: Radius.circular(18),
-            //             ),
-            //           ),
-            //           builder: (_) => const EditCollegeDialog(),// 修改用户信息组件
-            //         );
-            //       },
-            //       style: ElevatedButton.styleFrom(
-            //         backgroundColor: Colors.orange[500],
-            //         foregroundColor: Colors.white,
-            //         padding: const EdgeInsets.symmetric(
-            //           horizontal: 20,
-            //           vertical: 10,
-            //         ),
-            //         shape: RoundedRectangleBorder(
-            //           borderRadius: BorderRadius.circular(8),
-            //         ),
-            //       ),
-            //       child: const Text('修改'),
-            //     ),
-            //     const SizedBox(width: 12),
-            //     ElevatedButton(
-            //       onPressed: () {
-            //         // 删除确认弹窗
-            //         showDialog(
-            //           context: context,
-            //           builder: (context) => AlertDialog(
-            //             title: const Text('确认删除'),
-            //             content: const Text('确定要删除选中的用户吗？此操作不可撤销。'),
-            //             actions: [
-            //               TextButton(
-            //                 onPressed: () => Navigator.pop(context),
-            //                 child: const Text('取消'),
-            //               ),
-            //               TextButton(
-            //                 onPressed: () {
-            //                   // 这里可以添加实际的删除逻辑
-            //                   Navigator.pop(context);
-            //                   ScaffoldMessenger.of(context).showSnackBar(
-            //                     const SnackBar(content: Text('删除成功')),
-            //                   );
-            //                 },
-            //                 child: const Text('删除', style: TextStyle(color: Colors.red)),
-            //               ),
-            //             ],
-            //           ),
-            //         );
-            //       },
-            //       style: ElevatedButton.styleFrom(
-            //         backgroundColor: Colors.red[500],
-            //         foregroundColor: Colors.white,
-            //         padding: const EdgeInsets.symmetric(
-            //           horizontal: 20,
-            //           vertical: 10,
-            //         ),
-            //         shape: RoundedRectangleBorder(
-            //           borderRadius: BorderRadius.circular(8),
-            //         ),
-            //       ),
-            //       child: const Text('删除'),
-            //     ),
               ],
             ),
 
             const SizedBox(height: 12),
 
-            // 分页控制（基于筛选后的数据）
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                TextButton(
-                  onPressed: currentPage > 1
-                      ? () => setState(() => currentPage--)
-                      : null,
-                  child: const Text('上一页'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: currentPage > 1 ? primaryBlue : Colors.grey,
+            // 分页控制
+            if (!isLoading && errorMsg.isEmpty)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton(
+                    onPressed: currentPage > 1
+                        ? () => setState(() {
+                      currentPage--;
+                      _fetchUserData();
+                    })
+                        : null,
+                    child: const Text('上一页'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: currentPage > 1 ? primaryBlue : Colors.grey,
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    '$currentPage/$totalPages',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      '$currentPage/$totalPages',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
-                ),
-                TextButton(
-                  onPressed: currentPage < totalPages && totalPages > 0
-                      ? () => setState(() => currentPage++)
-                      : null,
-                  child: const Text('下一页'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: (currentPage < totalPages && totalPages > 0) ? primaryBlue : Colors.grey,
+                  TextButton(
+                    onPressed: currentPage < totalPages && totalPages > 0
+                        ? () => setState(() {
+                      currentPage++;
+                      _fetchUserData();
+                    })
+                        : null,
+                    child: const Text('下一页'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: (currentPage < totalPages && totalPages > 0) ? primaryBlue : Colors.grey,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
 
             const SizedBox(height: 10),
 
@@ -394,7 +377,7 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
     );
   }
 
-  // 下拉框组件
+  // 下拉框组件（保持不变）
   Widget _buildDropdown(String label, String value, List<String> options, ValueChanged<String?> onChanged) {
     return Expanded(
       child: Container(
@@ -415,7 +398,7 @@ class _AdminUserInfoManagementPageState extends State<AdminUserInfoManagementPag
               value: e,
               child: Text(
                 e,
-                overflow: TextOverflow.ellipsis, // 处理文字过长
+                overflow: TextOverflow.ellipsis,
               ),
             ))
                 .toList(),
