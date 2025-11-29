@@ -14,7 +14,7 @@ class UploadFileDialog extends StatefulWidget {
 }
 
 class _UploadFileDialogState extends State<UploadFileDialog> {
-  int selectedTab = 0; // 0 = 手动输入，1 = 上传文件
+  int selectedTab = 1; // 0 = 手动输入，1 = 上传文件
 
   // 上传文件队列（存储文件路径和信息）
   final List<Map<String, dynamic>> _fileQueue = [
