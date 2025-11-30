@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:competition/util/token_util.dart';
-import 'package:competition/util/http.dart'; // 导入你的HTTP请求封装
+import 'package:competition/util/http.dart';
 import 'package:competition/util/upload_file_dialog.dart';
+import 'package:url_launcher/url_launcher.dart';  // 导入url_launcher
+import 'package:url_launcher/url_launcher_string.dart';  // 导入字符串链接跳转工具
 
-// 材料数据模型（对应后端返回格式）
+// 材料数据模型（保持不变）
 class MaterialItem {
   final String eventName;
   final String eventOrganizer;
@@ -18,7 +20,6 @@ class MaterialItem {
     required this.materialStatus,
   });
 
-  // 从JSON解析模型
   factory MaterialItem.fromJson(Map<String, dynamic> json) {
     return MaterialItem(
       eventName: json['event_name'] ?? '未知赛事',
@@ -44,11 +45,10 @@ class _UploadPageState extends State<UploadPage> {
   @override
   void initState() {
     super.initState();
-    // 页面初始化时加载材料列表
     _fetchMaterialList();
   }
 
-  // 从后端获取学生上传的材料列表
+  // 获取材料列表（保持不变）
   Future<void> _fetchMaterialList() async {
     setState(() {
       _isLoading = true;
@@ -56,52 +56,43 @@ class _UploadPageState extends State<UploadPage> {
     });
 
     try {
-      // 1. 获取本地存储的UserId
       String? userId = await TokenUtil.getUserId();
       if (userId == null || userId.isEmpty) {
         throw Exception("未获取到userid");
       }
 
-      // 2. 构造请求参数（根据上图示意，假设需要userId作为查询参数）
       Map<String, dynamic> queryParams = {
         'Id': userId,
-        // 可根据实际需求添加其他参数，如分页参数
         'page_num': 1,
         'page_size': 10,
       };
 
-      // 3. 发送GET请求（使用封装的http_util中的get方法）
       Response response = await get(
-        '/query/materials/stu', // 接口路径（会拼接baseUrl）
+        '/query/materials/stu',
         queryParameters: queryParams,
       );
 
-      // 4. 解析响应数据
       if (response.data['base']['code'] == 10000) {
-        // 成功获取数据
         List<dynamic> items = response.data['data']['items'] ?? [];
         setState(() {
           _materialList = items.map((item) => MaterialItem.fromJson(item)).toList();
         });
       } else {
-        // 后端返回业务错误
         throw Exception("获取材料失败：${response.data['base']['msg'] ?? '未知错误'}");
       }
     } catch (e) {
-      // 捕获网络错误或业务错误
       setState(() {
         _errorMsg = e.toString().replaceAll('Exception: ', '');
       });
       print("获取材料列表异常：$e");
     } finally {
-      // 无论成功失败，都结束加载状态
       setState(() {
         _isLoading = false;
       });
     }
   }
 
-  // 根据状态获取对应的颜色
+  // 状态颜色（保持不变）
   Color _getStatusColor(String status) {
     switch (status) {
       case '已审核':
@@ -115,7 +106,32 @@ class _UploadPageState extends State<UploadPage> {
     }
   }
 
-  // 重构：上传记录项（展示后端返回的材料信息）
+  // 关键修改：完善查看详情的跳转逻辑
+  Future<void> _openMaterialUrl(String url) async {
+    // 验证URL合法性
+    if (!await canLaunchUrlString(url)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('链接无效，无法打开')),
+      );
+      return;
+    }
+
+    try {
+      // 打开链接：支持图片、PDF、文档等（根据手机默认应用打开）
+      await launchUrlString(
+        url,
+        mode: LaunchMode.externalApplication, // 用外部应用打开（推荐）
+        // 可选：如果想在应用内打开，可使用 LaunchMode.inAppWebView（需要额外配置）
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('打开失败：${e.toString()}')),
+      );
+      print("打开材料链接异常：$e");
+    }
+  }
+
+  // 材料记录项（修改查看详情的点击事件）
   Widget _buildMaterialRecordItem(MaterialItem item) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 13),
@@ -127,23 +143,19 @@ class _UploadPageState extends State<UploadPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 赛事名称
           Text(
             item.eventName,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 6),
-          // 举办单位
           Text(
             '举办单位：${item.eventOrganizer}',
             style: const TextStyle(fontSize: 12, color: Colors.black54),
           ),
           const SizedBox(height: 8),
-          // 状态标签 + 查看详情按钮
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // 状态标签
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
@@ -159,25 +171,9 @@ class _UploadPageState extends State<UploadPage> {
                   ),
                 ),
               ),
-              // 查看详情按钮（点击跳转材料链接）
+              // 关键修改：点击事件替换为_openMaterialUrl
               GestureDetector(
-                onTap: () {
-                  // 点击查看详情：可使用url_launcher打开链接
-                  // 需先在pubspec.yaml添加依赖：url_launcher: ^6.2.2
-                  // 示例代码：
-                  // if (item.materialUrl.isNotEmpty) {
-                  //   launchUrl(Uri.parse(item.materialUrl));
-                  // }
-                  if (item.materialUrl.isNotEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('材料链接：${item.materialUrl}')),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('暂无材料链接')),
-                    );
-                  }
-                },
+                onTap: () => _openMaterialUrl(item.materialUrl), // 直接打开链接
                 child: Text(
                   '查看详情',
                   style: const TextStyle(
@@ -194,7 +190,7 @@ class _UploadPageState extends State<UploadPage> {
     );
   }
 
-  // 加载状态组件
+  // 以下组件保持不变
   Widget _buildLoadingWidget() {
     return const Center(
       child: Padding(
@@ -210,7 +206,6 @@ class _UploadPageState extends State<UploadPage> {
     );
   }
 
-  // 错误状态组件
   Widget _buildErrorWidget() {
     return Center(
       child: Padding(
@@ -226,7 +221,7 @@ class _UploadPageState extends State<UploadPage> {
             ),
             const SizedBox(height: 10),
             ElevatedButton(
-              onPressed: () => _fetchMaterialList(), // 重新加载
+              onPressed: () => _fetchMaterialList(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
                 foregroundColor: Colors.white,
@@ -239,7 +234,6 @@ class _UploadPageState extends State<UploadPage> {
     );
   }
 
-  // 空数据组件
   Widget _buildEmptyWidget() {
     return const Center(
       child: Padding(
@@ -260,7 +254,6 @@ class _UploadPageState extends State<UploadPage> {
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -281,10 +274,8 @@ class _UploadPageState extends State<UploadPage> {
         padding: const EdgeInsets.all(16),
         child: ListView(
           children: [
-            // 上传区域（保持原有样式）
             GestureDetector(
               onTap: () {
-                // 点击上传区域时显示文件上传对话框
                 showDialog(
                   context: context,
                   builder: (context) => const UploadFileDialog(),
@@ -314,15 +305,12 @@ class _UploadPageState extends State<UploadPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
             const Text(
               '最近上传记录',
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
             ),
             const SizedBox(height: 12),
-
-            // 材料列表展示区域
             if (_isLoading)
               _buildLoadingWidget()
             else if (_errorMsg != null)
@@ -337,7 +325,7 @@ class _UploadPageState extends State<UploadPage> {
     );
   }
 
-  // 保留原有未使用的方法（如需使用可自行启用）
+  // 保留原有未使用方法（如需使用可自行启用）
   @Deprecated('已替换为_buildMaterialRecordItem，根据后端数据动态构建')
   Widget _buildRecordItem({
     required String name,
@@ -345,6 +333,7 @@ class _UploadPageState extends State<UploadPage> {
     required Color statusColor,
     required String actionText,
   }) {
+    // 原有代码不变...
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 13),
       decoration: const BoxDecoration(
@@ -396,13 +385,13 @@ class _UploadPageState extends State<UploadPage> {
     );
   }
 
-  // 保留原有未使用的方法
   Widget _buildUploadingItem({
     required String name,
     required double progress,
     required String status,
     required Color iconColor,
   }) {
+    // 原有代码不变...
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
@@ -436,12 +425,12 @@ class _UploadPageState extends State<UploadPage> {
     );
   }
 
-  // 保留原有未使用的方法
   Widget _buildCompletedItem({
     required String name,
     required String status,
     required Color color,
   }) {
+    // 原有代码不变...
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
