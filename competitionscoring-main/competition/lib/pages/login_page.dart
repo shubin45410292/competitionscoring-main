@@ -168,7 +168,7 @@ class _LoginPageState extends State<LoginPage> {
                           border: OutlineInputBorder(),
                           contentPadding:
                               EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-                          hintText: 'teacher 或 student 或 admin',
+                          hintText: '请输入账号',
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -184,7 +184,7 @@ class _LoginPageState extends State<LoginPage> {
                           border: OutlineInputBorder(),
                           contentPadding:
                               EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-                          hintText: '123456',
+                          hintText: '请输入密码',
                         ),
                       ),
                     ],
