@@ -5,9 +5,10 @@ import 'package:file_picker/file_picker.dart'; // 用于选择文件
 import 'dart:io';
 import 'package:competition/util/http.dart';
 
-
 class UploadFileDialog extends StatefulWidget {
-  const UploadFileDialog({super.key});
+  const UploadFileDialog({super.key, required this.onUploadSuccess}); // 父组件传递的回调函数
+
+  final VoidCallback onUploadSuccess;  // 上传成功后的回调
 
   @override
   State<UploadFileDialog> createState() => _UploadFileDialogState();
@@ -17,35 +18,7 @@ class _UploadFileDialogState extends State<UploadFileDialog> {
   int selectedTab = 1; // 0 = 手动输入，1 = 上传文件
 
   // 上传文件队列（存储文件路径和信息）
-  final List<Map<String, dynamic>> _fileQueue = [
-    // {"name": "xxx交通.pdf", "date": "2023/09/01", "file": null},
-    // {"name": "xxx奖项.pdf", "date": "2023/09/02", "file": null},
-    // {"name": "xxx资质.doc", "date": "2023/08/10", "file": null},
-  ];
-
-  // 赛事信息选项
-  final List<String> _competitionNames = [
-    "全国大学生机械创新设计大赛",
-    "全国大学生等离子体科技创新竞赛",
-    "全国大学生xxxxxx",
-    "全国xxxxxxx",
-  ];
-  final List<String> _awardLevels = [
-    "国家级一等奖", "国家级二等奖", "国家级三等奖", "省级一等奖", "省级二等奖"
-  ];
-  final List<String> _competitionDates = [
-    "2025年5月", "2025年6月", "2025年7月", "2025年8月"
-  ];
-  final List<String> _organizer = [
-    "2025年5月", "2025年6月", "2025年7月", "2025年8月"
-  ];
-
-  // 选中的值
-  // 暂时不用，可能用于未来手动上传开发
-  String? _selectedCompetition;
-  String? _selectedAward;
-  String? _selectedDate;
-  String? _selectedOrganizer;
+  final List<Map<String, dynamic>> _fileQueue = [];
 
   // 上传状态
   bool _isUploading = false;
@@ -53,10 +26,6 @@ class _UploadFileDialogState extends State<UploadFileDialog> {
   @override
   void initState() {
     super.initState();
-    _selectedCompetition = _competitionNames.isNotEmpty ? _competitionNames[0] : null;
-    _selectedAward = _awardLevels.isNotEmpty ? _awardLevels[0] : null;
-    _selectedDate = _competitionDates.isNotEmpty ? _competitionDates[0] : null;
-    _selectedOrganizer = _organizer.isNotEmpty ? _organizer[0] : null;
   }
 
   // 选择文件并添加到队列
@@ -91,7 +60,7 @@ class _UploadFileDialogState extends State<UploadFileDialog> {
     setState(() => _isUploading = true);
 
     try {
-      // 1. 上传文件方式（表单为form-data）
+      // 上传文件方式（表单为form-data）
       if (selectedTab == 1) {
         for (var fileItem in _fileQueue) {
           File? file = fileItem["file"];
@@ -114,18 +83,19 @@ class _UploadFileDialogState extends State<UploadFileDialog> {
             ),
           );
 
-          // 处理响应
           if (response.data["base"]["code"] == 10000) {
             String eventId = response.data["event_id"];
             _showSnackBar("文件 ${fileItem["name"]} 上传成功，event_id: $eventId");
+
+            // 上传成功后调用父组件的回调，刷新历史记录
+            widget.onUploadSuccess();
           } else {
             throw Exception("上传失败：${response.data["base"]["msg"] ?? "未知错误"}");
           }
         }
       }
-      // 2. 手动输入方式（可根据实际需求扩展）
+      // 手动输入方式（可根据实际需求扩展）
       else {
-        // 这里可以添加手动输入表单的提交逻辑
         _showSnackBar("手动输入信息已记录，可结合文件上传接口扩展");
       }
 
@@ -178,17 +148,13 @@ class _UploadFileDialogState extends State<UploadFileDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   //_buildTabButton('手动输入', 0),
-                  _buildTabButton('上传文件', 0),
+                  _buildTabButton('上传文件', 1),  // 上传文件
                 ],
               ),
 
               const SizedBox(height: 20),
 
-              // 切换显示不同表单
-              // if (selectedTab == 0)
-              //   _buildManualInputForm()
-              // else
-                _buildFileUploadForm(),
+              _buildFileUploadForm(),
 
               const SizedBox(height: 16),
               Text(
@@ -210,10 +176,6 @@ class _UploadFileDialogState extends State<UploadFileDialog> {
                     onPressed: _isUploading ? null : () {
                       setState(() {
                         _fileQueue.clear();
-                        // _selectedCompetition = _competitionNames.isNotEmpty ? _competitionNames[0] : null;
-                        // _selectedAward = _awardLevels.isNotEmpty ? _awardLevels[0] : null;
-                        // _selectedDate = _competitionDates.isNotEmpty ? _competitionDates[0] : null;
-                        // _selectedOrganizer = _organizer.isNotEmpty ? _organizer[0] : null;
                       });
                     },
                     child: const Text('重置'),
@@ -261,65 +223,6 @@ class _UploadFileDialogState extends State<UploadFileDialog> {
       ),
     );
   }
-
-  // 手动输入表单
-  // Widget _buildManualInputForm() {
-  //   return Column(
-  //     crossAxisAlignment: CrossAxisAlignment.start,
-  //     children: [
-  //       DropdownButtonFormField<String>(
-  //         value: _selectedCompetition,
-  //         decoration: const InputDecoration(
-  //           labelText: '竞赛名称',
-  //           border: OutlineInputBorder(),
-  //         ),
-  //         items: _competitionNames
-  //             .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-  //             .toList(),
-  //         onChanged: (v) => setState(() => _selectedCompetition = v),
-  //       ),
-  //       const SizedBox(height: 16),
-  //
-  //       DropdownButtonFormField<String>(
-  //         value: _selectedAward,
-  //         decoration: const InputDecoration(
-  //           labelText: '获得奖项',
-  //           border: OutlineInputBorder(),
-  //         ),
-  //         items: _awardLevels
-  //             .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-  //             .toList(),
-  //         onChanged: (v) => setState(() => _selectedAward = v),
-  //       ),
-  //       const SizedBox(height: 16),
-  //
-  //       DropdownButtonFormField<String>(
-  //         value: _selectedDate,
-  //         decoration: const InputDecoration(
-  //           labelText: '竞赛时间',
-  //           border: OutlineInputBorder(),
-  //         ),
-  //         items: _competitionDates
-  //             .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-  //             .toList(),
-  //         onChanged: (v) => setState(() => _selectedDate = v),
-  //       ),
-  //       const SizedBox(height: 16),
-  //
-  //       DropdownButtonFormField<String>(
-  //         value: _selectedOrganizer,
-  //         decoration: const InputDecoration(
-  //           labelText: '举办单位',
-  //           border: OutlineInputBorder(),
-  //         ),
-  //         items: _organizer
-  //             .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-  //             .toList(),
-  //         onChanged: (v) => setState(() => _selectedOrganizer = v),
-  //       ),
-  //     ],
-  //   );
-  // }
 
   // 上传文件表单
   Widget _buildFileUploadForm() {

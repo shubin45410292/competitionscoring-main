@@ -45,10 +45,10 @@ class _UploadPageState extends State<UploadPage> {
   @override
   void initState() {
     super.initState();
-    _fetchMaterialList();
+    _fetchMaterialList();  // 初始加载数据
   }
 
-  // 获取材料列表（保持不变）
+  // 获取材料列表
   Future<void> _fetchMaterialList() async {
     setState(() {
       _isLoading = true;
@@ -108,7 +108,6 @@ class _UploadPageState extends State<UploadPage> {
 
   // 关键修改：完善查看详情的跳转逻辑
   Future<void> _openMaterialUrl(String url) async {
-    // 验证URL合法性
     if (!await canLaunchUrlString(url)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('链接无效，无法打开')),
@@ -117,11 +116,9 @@ class _UploadPageState extends State<UploadPage> {
     }
 
     try {
-      // 打开链接：支持图片、PDF、文档等（根据手机默认应用打开）
       await launchUrlString(
         url,
-        mode: LaunchMode.externalApplication, // 用外部应用打开（推荐）
-        // 可选：如果想在应用内打开，可使用 LaunchMode.inAppWebView（需要额外配置）
+        mode: LaunchMode.externalApplication,
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -171,7 +168,6 @@ class _UploadPageState extends State<UploadPage> {
                   ),
                 ),
               ),
-              // 关键修改：点击事件替换为_openMaterialUrl
               GestureDetector(
                 onTap: () => _openMaterialUrl(item.materialUrl), // 直接打开链接
                 child: Text(
@@ -278,7 +274,13 @@ class _UploadPageState extends State<UploadPage> {
               onTap: () {
                 showDialog(
                   context: context,
-                  builder: (context) => const UploadFileDialog(),
+                  builder: (context) => UploadFileDialog(
+                    // 上传文件后更新材料列表
+                    onUploadSuccess: () {
+                      print("上传成功，开始刷新材料列表...");
+                      _fetchMaterialList();  // 刷新数据
+                    },
+                  ),
                 );
               },
               child: Container(
@@ -316,157 +318,11 @@ class _UploadPageState extends State<UploadPage> {
             else if (_errorMsg != null)
               _buildErrorWidget()
             else if (_materialList.isEmpty)
-                _buildEmptyWidget()
-              else
-                ..._materialList.map((item) => _buildMaterialRecordItem(item)).toList(),
+              _buildEmptyWidget()
+            else
+              ..._materialList.map((item) => _buildMaterialRecordItem(item)).toList(),
           ],
         ),
-      ),
-    );
-  }
-
-  // 保留原有未使用方法（如需使用可自行启用）
-  @Deprecated('已替换为_buildMaterialRecordItem，根据后端数据动态构建')
-  Widget _buildRecordItem({
-    required String name,
-    required String status,
-    required Color statusColor,
-    required String actionText,
-  }) {
-    // 原有代码不变...
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 13),
-      decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE0E0E0)),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Row(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                  const SizedBox(width: 10),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: statusColor,
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: Text(
-                      status,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          Text(
-            actionText,
-            style: const TextStyle(
-              color: Colors.blue,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUploadingItem({
-    required String name,
-    required double progress,
-    required String status,
-    required Color iconColor,
-  }) {
-    // 原有代码不变...
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(name, style: const TextStyle(fontSize: 15)),
-          const SizedBox(height: 6),
-          LinearProgressIndicator(
-            value: progress,
-            backgroundColor: Colors.grey[200],
-            color: iconColor,
-            minHeight: 4,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          const SizedBox(height: 4),
-          Text(status, style: const TextStyle(fontSize: 13, color: Colors.black54)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCompletedItem({
-    required String name,
-    required String status,
-    required Color color,
-  }) {
-    // 原有代码不变...
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(name, style: const TextStyle(fontSize: 15)),
-              Text(
-                status,
-                style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w500),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          LinearProgressIndicator(
-            value: 1.0,
-            backgroundColor: Colors.grey[200],
-            color: color,
-            minHeight: 4,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ],
       ),
     );
   }
